@@ -10,8 +10,6 @@ const params  = new URLSearchParams(location.search);
 const ROOM_ID = params.get('room')   || sessionStorage.getItem('trio_room');
 const MY_ID   = params.get('player') || sessionStorage.getItem('trio_player');
 
-const WIN_SIMPLE = 3;
-const WIN_SPICY  = 2;
 const LOG_TTL    = 10_000;   // ms until log entry fades out
 const CARD_FLIP_TTL = 10_000; // ms until face-up center card flips back
 const PLAYER_COLORS = ['#FF6B6B','#4ECDC4','#F5C518','#A29BFE','#FD79A8','#55EFC4'];
@@ -20,6 +18,19 @@ let room     = null;
 let myPlayer = null;
 let isMyTurn = false;
 let flipBackLock = false; // prevent concurrent flip-back writes
+
+// ── Config helper (with defaults for legacy rooms) ────────────────────────────
+function cfg() {
+  return {
+    matchCount:  3,
+    maxCard:     12,
+    winsNeeded:  3,
+    handSize:    null,
+    centerCards: null,
+    ...(room?.config || {})
+  };
+}
+function matchLabel(n) { return n === 4 ? 'Quartet' : n === 3 ? 'Trio' : `${n}er-Set`; }
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -189,7 +200,8 @@ function renderStats() {
   const el = $('stats-container');
   if (!el) return;
   const stats    = room.stats || {};
-  const winGoal  = room.mode === 'spicy' ? WIN_SPICY : WIN_SIMPLE;
+  const c        = cfg();
+  const winGoal  = room.mode === 'spicy' ? 2 : c.winsNeeded;
   const rounds   = stats.rounds || 0;
   const players  = getPlayers();
 
@@ -253,7 +265,7 @@ async function askPlayer(targetId, type) {
   await log(`<span class="actor">${esc(myPlayer.name)}</span> fragt ${esc(target.name)} (${type==='lowest'?'↓ niedrigste':'↑ höchste'}) → <span class="highlight">${card}</span>`);
 
   const n = countVisible(newTarget, myPlayer.hand||[], newAsked, room.centerPile||[]);
-  if (n >= 3) await claimTrio(newTarget, newAsked, null);
+  if (n >= cfg().matchCount) await claimTrio(newTarget, newAsked, null);
 }
 
 // ── Action: Flip a center card ────────────────────────────────────────────────
@@ -282,7 +294,7 @@ async function flipCenterCard(idx) {
   await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt Karte auf → <span class="highlight">${value}</span>`);
 
   const n = countVisible(value, myPlayer.hand||[], asked, pile);
-  if (n >= 3) await claimTrio(value, asked, pile);
+  if (n >= cfg().matchCount) await claimTrio(value, asked, pile);
 }
 
 // ── Timer: flip face-up center cards back after CARD_FLIP_TTL ────────────────
@@ -352,19 +364,20 @@ async function claimTrio(value, askedThisTurn, updatedPile) {
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
 
   // Win check
+  const c         = cfg();
+  const label     = matchLabel(c.matchCount);
   const isGolden  = value === 7;
-  const wonSimple = room.mode !== 'spicy' && myTrios.length >= WIN_SIMPLE;
+  const wonSimple = room.mode !== 'spicy' && myTrios.length >= c.winsNeeded;
   const wonSpicy  = room.mode === 'spicy'  && hasConnectedTrios(myTrios);
   if (isGolden || wonSimple || wonSpicy) {
     updates[`rooms/${ROOM_ID}/phase`]  = 'ended';
     updates[`rooms/${ROOM_ID}/winner`] = MY_ID;
-    // Increment win stat
     const currentWins = (room.stats?.[MY_ID]?.wins || 0);
     updates[`rooms/${ROOM_ID}/stats/${MY_ID}/wins`] = currentWins + 1;
   }
 
   await update(ref(db), updates);
-  await log(`<span class="success">✓ Trio!</span> <span class="actor">${esc(myPlayer.name)}</span> sammelt drei <span class="highlight">${value}${value===7?' ⭐':''}</span>`);
+  await log(`<span class="success">✓ ${label}!</span> <span class="actor">${esc(myPlayer.name)}</span> sammelt ${c.matchCount}× <span class="highlight">${value}${value===7?' ⭐':''}</span>`);
 }
 
 // ── End turn ──────────────────────────────────────────────────────────────────
@@ -404,7 +417,7 @@ function showWin() {
 async function newGame() {
   if (!room) return;
   const players = getPlayers();
-  const { center, hands } = dealCards(players.length);
+  const { center, hands } = dealCards(players.length, room.config || {});
   const updates = {};
   players.forEach((p,i) => {
     updates[`rooms/${ROOM_ID}/players/${p.id}/hand`]  = hands[i];
@@ -424,13 +437,19 @@ async function newGame() {
   $('win-overlay').classList.remove('visible');
 }
 
-function dealCards(n) {
+function dealCards(n, config = {}) {
+  const maxCard    = Math.max(4, config.maxCard    || 12);
+  const matchCount = Math.max(2, config.matchCount || 3);
   let deck = [];
-  for (let i=1; i<=12; i++) deck.push(i,i,i);
+  for (let i=1; i<=maxCard; i++) for (let c=0; c<matchCount; c++) deck.push(i);
   for (let i=deck.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [deck[i],deck[j]]=[deck[j],deck[i]]; }
-  const size  = ({2:7,3:6,4:5,5:5,6:4})[n] ?? 5;
-  const hands = Array.from({length:n}, () => deck.splice(0,size));
-  return { center: deck.map(v=>({value:v,faceDown:true})), hands };
+  const autoSize = ({2:7,3:6,4:5,5:5,6:4})[n] ?? 5;
+  const size = (config.handSize && config.handSize >= 2) ? config.handSize : autoSize;
+  const hands = Array.from({length:n}, () => deck.splice(0, Math.min(size, deck.length)));
+  const center = config.centerCards != null
+    ? deck.splice(0, config.centerCards).map(v=>({value:v,faceDown:true}))
+    : deck.map(v=>({value:v,faceDown:true}));
+  return { center, hands };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -180,10 +180,41 @@
             <div class="form-group">
               <label for="create-mode">Spielmodus</label>
               <select id="create-mode">
-                <option value="simple">✨ Simple – 3 Trios zum Sieg</option>
-                <option value="spicy">🌶 Spicy – 2 verbundene Trios</option>
+                <option value="simple">✨ Simple – Sets zum Sieg sammeln</option>
+                <option value="spicy">🌶 Spicy – 2 verbundene Sets</option>
               </select>
             </div>
+
+            <!-- Advanced config -->
+            <details id="advanced-config" class="config-details">
+              <summary class="config-toggle">⚙ Erweiterte Einstellungen</summary>
+              <div class="config-grid">
+                <div class="form-group">
+                  <label for="config-match-count">Kartentyp</label>
+                  <select id="config-match-count">
+                    <option value="3">🃏 Trio – 3 gleiche</option>
+                    <option value="4">🃏 Quartet – 4 gleiche</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="config-wins-needed">Sets zum Sieg</label>
+                  <input type="number" id="config-wins-needed" min="1" max="10" value="3">
+                </div>
+                <div class="form-group">
+                  <label for="config-max-card">Kartenwerte (1 bis …)</label>
+                  <input type="number" id="config-max-card" min="4" max="20" value="12">
+                </div>
+                <div class="form-group">
+                  <label for="config-hand-size">Handkarten / Spieler</label>
+                  <input type="number" id="config-hand-size" min="2" max="15" placeholder="Auto">
+                </div>
+                <div class="form-group" style="grid-column:1/-1">
+                  <label for="config-center-cards">Tischkarten</label>
+                  <input type="number" id="config-center-cards" min="0" max="60" placeholder="Rest des Decks">
+                </div>
+              </div>
+            </details>
+
             <button id="create-room-btn" class="btn btn-primary" style="width:100%">Raum erstellen →</button>
           </div>
 

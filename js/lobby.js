@@ -60,6 +60,20 @@ async function createRoom() {
 
   if (!name) { showToast('Bitte gib deinen Namen ein.', 'error'); return; }
 
+  // Read advanced config
+  const cfgMatchCount  = parseInt($('config-match-count')?.value)  || 3;
+  const cfgMaxCard     = parseInt($('config-max-card')?.value)     || 12;
+  const cfgWinsNeeded  = parseInt($('config-wins-needed')?.value)  || 3;
+  const cfgHandRaw     = parseInt($('config-hand-size')?.value);
+  const cfgCenterRaw   = parseInt($('config-center-cards')?.value);
+  const config = {
+    matchCount:  Math.max(2, Math.min(6, cfgMatchCount)),
+    maxCard:     Math.max(4, Math.min(20, cfgMaxCard)),
+    winsNeeded:  Math.max(1, Math.min(10, cfgWinsNeeded)),
+    handSize:    (!isNaN(cfgHandRaw) && cfgHandRaw >= 2) ? cfgHandRaw : null,
+    centerCards: (!isNaN(cfgCenterRaw) && cfgCenterRaw >= 0) ? cfgCenterRaw : null,
+  };
+
   const roomId   = generateCode();
   currentPlayerId = generatePlayerId();
   isHost = true;
@@ -77,6 +91,7 @@ async function createRoom() {
   await set(ref(db, `rooms/${roomId}`), {
     id:            roomId,
     mode:          modeSelect.value,
+    config,
     phase:         'lobby',
     host:          currentPlayerId,
     currentPlayer: null,
@@ -195,7 +210,7 @@ async function startGame() {
   const room = roomSnap.val();
 
   const players = Object.values(room.players || {}).sort((a,b) => a.order - b.order);
-  const { deck, center, hands } = dealCards(players.length);
+  const { center, hands } = dealCards(players.length, room.config || {});
 
   const updates = {};
   players.forEach((p, i) => {
@@ -212,11 +227,14 @@ async function startGame() {
 }
 
 // ── Deal cards ───────────────────────────────────────────────────────────────
-function dealCards(playerCount) {
-  // Build deck: numbers 1–12, 3 of each = 36 cards
+function dealCards(playerCount, config = {}) {
+  const maxCard    = Math.max(4, config.maxCard    || 12);
+  const matchCount = Math.max(2, config.matchCount || 3);
+
+  // Build deck: numbers 1–maxCard, matchCount copies each
   let deck = [];
-  for (let n = 1; n <= 12; n++) {
-    deck.push(n, n, n);
+  for (let n = 1; n <= maxCard; n++) {
+    for (let c = 0; c < matchCount; c++) deck.push(n);
   }
   // Shuffle
   for (let i = deck.length - 1; i > 0; i--) {
@@ -224,19 +242,21 @@ function dealCards(playerCount) {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
 
-  // Determine hand size and center pile size based on player count
-  // Player count: 2→7 cards each, 3→6, 4→5, 5→5, 6→4
-  const handSizes = { 2: 7, 3: 6, 4: 5, 5: 5, 6: 4 };
-  const handSize  = handSizes[playerCount] ?? 5;
+  // Hand size: config override or auto based on player count
+  const autoSizes = { 2: 7, 3: 6, 4: 5, 5: 5, 6: 4 };
+  const handSize  = (config.handSize && config.handSize >= 2) ? config.handSize : (autoSizes[playerCount] ?? 5);
 
   const hands = [];
   for (let i = 0; i < playerCount; i++) {
-    hands.push(deck.splice(0, handSize));
+    hands.push(deck.splice(0, Math.min(handSize, deck.length)));
   }
-  // Rest goes face-down in center
-  const center = deck.map(n => ({ value: n, faceDown: true }));
 
-  return { deck, center, hands };
+  // Center: config override or rest of deck
+  const center = config.centerCards != null
+    ? deck.splice(0, config.centerCards).map(n => ({ value: n, faceDown: true }))
+    : deck.map(n => ({ value: n, faceDown: true }));
+
+  return { center, hands };
 }
 
 // ── Redirect to game ─────────────────────────────────────────────────────────
