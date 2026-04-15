@@ -1,8 +1,8 @@
 import FIREBASE_CONFIG from './config.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
 import {
   getDatabase, ref, get, update, onValue, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+} from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js';
 
 // ── Firebase init ────────────────────────────────────────────────────────────
 const app = initializeApp(FIREBASE_CONFIG);

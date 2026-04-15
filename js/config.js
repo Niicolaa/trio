@@ -31,13 +31,14 @@
  */
 
 const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL:       "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey:            "AIzaSyCo1nM46lnELMarSNeZF9IvKyoGlyKDv9k",
+  authDomain:        "trio-18b5c.firebaseapp.com",
+  databaseURL:       "https://trio-18b5c-default-rtdb.firebaseio.com",
+  projectId:         "trio-18b5c",
+  storageBucket:     "trio-18b5c.firebasestorage.app",
+  messagingSenderId: "635581974426",
+  appId:             "1:635581974426:web:f4a65985a628e669695c23",
+  measurementId:     "G-GJ6JRDBMKN"
 };
 
 export default FIREBASE_CONFIG;
