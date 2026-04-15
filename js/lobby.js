@@ -314,9 +314,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (joinParam) {
     showTab('join');
     $('join-code').value = joinParam.toUpperCase();
-    $('join-name').focus();
     // Clean URL without reloading
     history.replaceState(null, '', location.pathname);
+    // Scroll to the play section and focus name input
+    const playSection = document.querySelector('#spiel-starten');
+    if (playSection) {
+      playSection.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => $('join-name')?.focus(), 600);
+    } else {
+      $('join-name')?.focus();
+    }
   }
 
   // Tab switching

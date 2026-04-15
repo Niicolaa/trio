@@ -11,13 +11,14 @@ const ROOM_ID = params.get('room')   || sessionStorage.getItem('trio_room');
 const MY_ID   = params.get('player') || sessionStorage.getItem('trio_player');
 
 const LOG_TTL    = 10_000;   // ms until log entry fades out
-const CARD_FLIP_TTL = 10_000; // ms until face-up center card flips back
 const PLAYER_COLORS = ['#FF6B6B','#4ECDC4','#F5C518','#A29BFE','#FD79A8','#55EFC4'];
 
-let room     = null;
-let myPlayer = null;
-let isMyTurn = false;
-let flipBackLock = false; // prevent concurrent flip-back writes
+let room           = null;
+let myPlayer       = null;
+let isMyTurn       = false;
+let confettiFired  = false;
+let _newGameLock   = false;
+let _logKeys       = '';
 
 // ── Config helper (with defaults for legacy rooms) ────────────────────────────
 function cfg() {
@@ -46,6 +47,8 @@ function pColor(p) { return p?.color || PLAYER_COLORS[(p?.order||0)%PLAYER_COLOR
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function render(data) {
+  // Reset confetti flag when a new round starts
+  if (room?.phase === 'ended' && data.phase === 'playing') confettiFired = false;
   room     = data;
   myPlayer = room.players?.[MY_ID];
   isMyTurn = room.currentPlayer === MY_ID;
@@ -119,13 +122,6 @@ function renderCenterPile() {
     } else {
       div.className = 'game-card face-up';
       div.innerHTML = `<span class="corner tl">${card.value}</span>${card.value}<span class="corner br">${card.value}</span>`;
-      // Show countdown ring if card will flip back
-      if (card.flippedAt) {
-        const remaining = Math.max(0, CARD_FLIP_TTL - (now - card.flippedAt));
-        const pct = remaining / CARD_FLIP_TTL;
-        div.style.setProperty('--flip-progress', pct);
-        div.classList.add('has-timer');
-      }
     }
     el.appendChild(div);
   });
@@ -178,21 +174,30 @@ function renderHint() {
 function renderLog() {
   const el  = $('action-log');
   const now = Date.now();
-  const FADE_START = LOG_TTL * 0.7; // start fading at 70% of TTL
+  const FADE_START = LOG_TTL * 0.7;
 
   const entries = Object.values(room.log || {})
     .sort((a,b) => (a.ts||0) - (b.ts||0))
-    .filter(e => !e.ts || (now - e.ts) < LOG_TTL); // hide entries older than TTL
+    .filter(e => !e.ts || (now - e.ts) < LOG_TTL);
 
-  el.innerHTML = '<div class="log-title">Spielverlauf</div>' +
-    entries.reverse().map(e => {
-      const age = now - (e.ts || 0);
-      let opacity = 1;
-      if (age > FADE_START) {
-        opacity = Math.max(0, 1 - (age - FADE_START) / (LOG_TTL - FADE_START));
-      }
-      return `<div class="log-entry" style="opacity:${opacity.toFixed(3)}">${e.text}</div>`;
-    }).join('');
+  // Only rebuild DOM when the set of entries changes (avoids flicker)
+  const keys = entries.map(e => e.ts || 0).join(',');
+  if (keys !== _logKeys) {
+    _logKeys = keys;
+    el.innerHTML = '<div class="log-title">Spielverlauf</div>' +
+      [...entries].reverse().map(e =>
+        `<div class="log-entry" data-ts="${e.ts||0}">${e.text}</div>`
+      ).join('');
+  }
+
+  // Update opacity in-place without touching innerHTML
+  el.querySelectorAll('.log-entry[data-ts]').forEach(div => {
+    const age = now - (parseInt(div.dataset.ts) || 0);
+    const opacity = age > FADE_START
+      ? Math.max(0, 1 - (age - FADE_START) / (LOG_TTL - FADE_START))
+      : 1;
+    div.style.opacity = opacity.toFixed(3);
+  });
 }
 
 // ── Statistics panel ──────────────────────────────────────────────────────────
@@ -244,7 +249,18 @@ async function askPlayer(targetId, type) {
   const target = room.players?.[targetId];
   if (!target?.hand?.length) { toast('Keine Karten.', 'error'); return; }
 
-  const sorted = [...target.hand].sort((a,b) => a-b);
+  // Build effective hand: exclude cards already revealed from this player this turn
+  const alreadyRevealed = (room.askedThisTurn || [])
+    .filter(a => a.playerId === targetId)
+    .map(a => a.value);
+  const effectiveHand = [...target.hand];
+  for (const v of alreadyRevealed) {
+    const i = effectiveHand.indexOf(v);
+    if (i !== -1) effectiveHand.splice(i, 1);
+  }
+  if (!effectiveHand.length) { toast('Keine weiteren Karten von diesem Spieler.', 'error'); return; }
+
+  const sorted = [...effectiveHand].sort((a,b) => a-b);
   const card   = type === 'lowest' ? sorted[0] : sorted[sorted.length-1];
   const curTarget = room.turnTarget ?? null;
 
@@ -275,7 +291,7 @@ async function flipCenterCard(idx) {
   if (!pile[idx]?.faceDown) return;
 
   const value     = pile[idx].value;
-  pile[idx]       = { value, faceDown: false, flippedAt: Date.now() };
+  pile[idx]       = { value, faceDown: false };
   const curTarget = room.turnTarget ?? null;
   const asked     = room.askedThisTurn || [];
 
@@ -295,32 +311,6 @@ async function flipCenterCard(idx) {
 
   const n = countVisible(value, myPlayer.hand||[], asked, pile);
   if (n >= cfg().matchCount) await claimTrio(value, asked, pile);
-}
-
-// ── Timer: flip face-up center cards back after CARD_FLIP_TTL ────────────────
-async function checkCardFlipBack() {
-  if (!room || room.phase !== 'playing' || flipBackLock) return;
-  const pile = room.centerPile || [];
-  const now  = Date.now();
-  let changed = false;
-
-  const newPile = pile.map(c => {
-    if (!c.faceDown && c.flippedAt && (now - c.flippedAt) >= CARD_FLIP_TTL) {
-      changed = true;
-      return { value: c.value, faceDown: true }; // flip back, drop flippedAt
-    }
-    return c;
-  });
-
-  if (changed) {
-    flipBackLock = true;
-    try {
-      await update(ref(db), { [`rooms/${ROOM_ID}/centerPile`]: newPile });
-      await log('Aufgedeckte Karten wurden wieder umgedreht.');
-    } finally {
-      flipBackLock = false;
-    }
-  }
 }
 
 // ── Claim trio ────────────────────────────────────────────────────────────────
@@ -385,10 +375,15 @@ async function endTurn() {
   const players = getPlayers();
   const idx     = players.findIndex(p => p.id === room.currentPlayer);
   const next    = players[(idx+1) % players.length];
+
+  // Flip all face-up center cards back face-down at turn end
+  const pile = (room.centerPile || []).map(c => c.faceDown ? c : { value: c.value, faceDown: true });
+
   await update(ref(db), {
     [`rooms/${ROOM_ID}/currentPlayer`]: next.id,
     [`rooms/${ROOM_ID}/turnTarget`]:    null,
-    [`rooms/${ROOM_ID}/askedThisTurn`]: []
+    [`rooms/${ROOM_ID}/askedThisTurn`]: [],
+    [`rooms/${ROOM_ID}/centerPile`]:    pile
   });
 }
 
@@ -402,15 +397,36 @@ function hasConnectedTrios(trios) {
 // ── Win overlay ───────────────────────────────────────────────────────────────
 function showWin() {
   const overlay = $('win-overlay');
-  if (overlay.classList.contains('visible')) return;
-  const winner = room.players?.[room.winner];
+  const winner  = room.players?.[room.winner];
   if (!winner) return;
-  overlay.classList.add('visible');
+
   const mine = room.winner === MY_ID;
-  $('win-emoji').textContent       = mine ? '🏆' : '🎉';
-  $('win-winner-name').textContent = winner.name;
-  $('win-subtitle').textContent    = mine ? 'Du hast gewonnen! Glückwunsch!' : `${winner.name} hat das Spiel gewonnen!`;
-  if (mine) confetti();
+  if (!overlay.classList.contains('visible')) {
+    overlay.classList.add('visible');
+    $('win-emoji').textContent       = mine ? '🏆' : '🎉';
+    $('win-winner-name').textContent = winner.name;
+    $('win-subtitle').textContent    = mine ? 'Du hast gewonnen! Glückwunsch!' : `${winner.name} hat das Spiel gewonnen!`;
+    if (mine && !confettiFired) { confetti(); confettiFired = true; }
+  }
+
+  // Update ready-button state
+  const players    = getPlayers();
+  const readyMap   = room.readyForNext || {};
+  const readyCount = Object.keys(readyMap).length;
+  const total      = players.length;
+  const iReady     = !!readyMap[MY_ID];
+  const btn        = $('btn-ready');
+  if (btn) {
+    btn.disabled    = iReady;
+    btn.textContent = iReady
+      ? `Warte… (${readyCount}/${total} bereit)`
+      : `✓ Nächste Runde beitreten (${readyCount}/${total})`;
+  }
+}
+
+// ── Mark ready for next round ─────────────────────────────────────────────────
+async function markReady() {
+  await update(ref(db), { [`rooms/${ROOM_ID}/readyForNext/${MY_ID}`]: true });
 }
 
 // ── New game ──────────────────────────────────────────────────────────────────
@@ -429,8 +445,8 @@ async function newGame() {
   updates[`rooms/${ROOM_ID}/currentPlayer`] = players[0].id;
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
+  updates[`rooms/${ROOM_ID}/readyForNext`]  = null;  // clear ready state
   updates[`rooms/${ROOM_ID}/log`]           = { e0: { text: 'Neue Runde gestartet!', ts: Date.now() } };
-  // Increment round counter but keep player win stats
   const currentRounds = room.stats?.rounds || 0;
   updates[`rooms/${ROOM_ID}/stats/rounds`]  = currentRounds + 1;
   await update(ref(db), updates);
@@ -483,19 +499,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   onValue(ref(db, `rooms/${ROOM_ID}`), snap => {
     if (!snap.exists()) { toast('Raum nicht gefunden.', 'error'); return; }
-    render(snap.val());
+    const data = snap.val();
+    render(data);
+
+    // Auto-start new round when all players have clicked ready
+    if (data.phase === 'ended') {
+      const players  = Object.values(data.players || {}).sort((a,b) => (a.order||0)-(b.order||0));
+      const readyMap = data.readyForNext || {};
+      const allReady = players.length >= 2 && players.every(p => readyMap[p.id]);
+      // Only the lowest-order player (original host) triggers newGame to avoid races
+      if (allReady && players[0]?.id === MY_ID && !_newGameLock) {
+        _newGameLock = true;
+        newGame().finally(() => { _newGameLock = false; });
+      }
+    }
   });
 
-  // Re-render log every second for fade effect + check card flip-back
-  setInterval(() => {
-    if (room) {
-      renderLog();
-      renderCenterPile(); // update timer rings
-      checkCardFlipBack();
-    }
-  }, 1000);
+  // Re-render log every second for fade effect only
+  setInterval(() => { if (room) renderLog(); }, 1000);
 
-  $('btn-new-game')?.addEventListener('click', newGame);
+  $('btn-ready')?.addEventListener('click', markReady);
   $('btn-back-lobby')?.addEventListener('click', () => location.href = 'index.html');
   $('btn-leave')?.addEventListener('click', () => location.href = 'index.html');
 });
