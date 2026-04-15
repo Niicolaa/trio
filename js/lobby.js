@@ -272,19 +272,8 @@ function escapeHtml(str) {
             .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ── Check if Firebase is configured ─────────────────────────────────────────
-function isFirebaseConfigured() {
-  return FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
-}
-
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Firebase config check
-  if (!isFirebaseConfigured()) {
-    const banner = $('firebase-banner');
-    if (banner) banner.classList.remove('hidden');
-  }
-
   // Tab switching
   document.querySelectorAll('.lobby-tab').forEach(btn => {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
