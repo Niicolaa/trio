@@ -135,7 +135,7 @@ function renderCenterPile() {
 
 function renderMyHand() {
   if (!myPlayer) return;
-  const hand  = myPlayer.hand  || [];
+  const hand  = [...(myPlayer.hand  || [])].sort((a,b) => a-b);
   const trios = myPlayer.trios || [];
   const col   = pColor(myPlayer);
 
