@@ -151,6 +151,21 @@ function enterWaitingRoom(roomId) {
   showSection('waiting');
   $('waiting-room-code').textContent = roomId;
 
+  // Generate QR code linking to this page with ?join=ROOMCODE
+  const joinUrl = `${location.origin}${location.pathname}?join=${roomId}`;
+  const qrEl = $('qrcode');
+  qrEl.innerHTML = '';
+  if (window.QRCode) {
+    new QRCode(qrEl, {
+      text: joinUrl,
+      width: 148,
+      height: 148,
+      colorDark: '#1a0f3c',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+
   // Start listening for room changes
   if (unsubscribe) unsubscribe();
   const roomRef = ref(db, `rooms/${roomId}`);
@@ -294,6 +309,16 @@ function escapeHtml(str) {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Auto-fill room code from ?join= URL parameter (e.g. from QR code scan)
+  const joinParam = new URLSearchParams(location.search).get('join');
+  if (joinParam) {
+    showTab('join');
+    $('join-code').value = joinParam.toUpperCase();
+    $('join-name').focus();
+    // Clean URL without reloading
+    history.replaceState(null, '', location.pathname);
+  }
+
   // Tab switching
   document.querySelectorAll('.lobby-tab').forEach(btn => {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));

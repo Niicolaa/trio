@@ -535,6 +535,38 @@ footer p { font-size: 0.9rem; color: rgba(255,255,255,0.5); }
   text-transform: uppercase;
 }
 
+/* ===== QR Code ===== */
+.qr-container {
+  text-align: center;
+  padding: 1.25rem 1rem 0.75rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.2rem;
+}
+
+.qr-container #qrcode {
+  display: inline-block;
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  line-height: 0;
+}
+
+.qr-container #qrcode img,
+.qr-container #qrcode canvas {
+  display: block;
+  border-radius: 4px;
+}
+
+.qr-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.4);
+  margin-top: 0.6rem;
+  margin-bottom: 0;
+}
+
 /* ===== Room Code Display ===== */
 .room-code-display {
   background: rgba(245, 197, 24, 0.1);

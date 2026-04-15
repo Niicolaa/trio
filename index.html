@@ -234,6 +234,13 @@
 
         <!-- View: Waiting room -->
         <div id="view-waiting" class="lobby-view hidden">
+
+          <!-- QR Code -->
+          <div class="qr-container">
+            <div id="qrcode"></div>
+            <p class="qr-label">📷 Scannen zum Beitreten</p>
+          </div>
+
           <div class="room-code-display">
             <div class="label">Raumcode teilen</div>
             <div class="code" id="waiting-room-code">------</div>
@@ -271,6 +278,7 @@
 <!-- ═══ Toast container ════════════════════════════════════════════════════ -->
 <div id="toast-container" class="toast-container"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module" src="js/lobby.js"></script>
 </body>
 </html>
