@@ -12,11 +12,14 @@ const MY_ID   = params.get('player') || sessionStorage.getItem('trio_player');
 
 const WIN_SIMPLE = 3;
 const WIN_SPICY  = 2;
+const LOG_TTL    = 10_000;   // ms until log entry fades out
+const CARD_FLIP_TTL = 10_000; // ms until face-up center card flips back
 const PLAYER_COLORS = ['#FF6B6B','#4ECDC4','#F5C518','#A29BFE','#FD79A8','#55EFC4'];
 
 let room     = null;
 let myPlayer = null;
 let isMyTurn = false;
+let flipBackLock = false; // prevent concurrent flip-back writes
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -42,32 +45,30 @@ function render(data) {
   renderMyHand();
   renderHint();
   renderLog();
+  renderStats();
   if (room.phase === 'ended') showWin();
 }
 
 function renderHeader() {
   $('header-room-code').textContent = ROOM_ID;
   const mode = room.mode || 'simple';
-  $('header-mode').textContent  = mode === 'spicy' ? '🌶 Spicy' : '✨ Simple';
-  $('header-mode').className    = `mode-badge ${mode}`;
+  $('header-mode').textContent = mode === 'spicy' ? '🌶 Spicy' : '✨ Simple';
+  $('header-mode').className   = `mode-badge ${mode}`;
   const cur = room.players?.[room.currentPlayer];
   $('turn-indicator-name').textContent = isMyTurn ? 'Dein Zug!' : (cur ? `${esc(cur.name)}s Zug` : '…');
 }
 
 function renderOpponents() {
-  const el  = $('opponents-container');
+  const el = $('opponents-container');
   el.innerHTML = '';
   const asked = room.askedThisTurn || [];
 
   getPlayers().filter(p => p.id !== MY_ID).forEach(p => {
-    const col   = pColor(p);
-    const tCol  = isLight(col) ? '#2d1b69' : '#fff';
+    const col  = pColor(p);
+    const tCol = isLight(col) ? '#2d1b69' : '#fff';
     const isAct = room.currentPlayer === p.id;
     const trios = p.trios || [];
-
-    // Last asked card from this player (shown to all)
     const lastAsked = [...asked].reverse().find(a => a.playerId === p.id);
-
     const disabled = (!isMyTurn || isAct) ? 'disabled' : '';
 
     const div = document.createElement('div');
@@ -93,9 +94,11 @@ function renderOpponents() {
 }
 
 function renderCenterPile() {
-  const el   = $('center-pile-grid');
+  const el = $('center-pile-grid');
   el.innerHTML = '';
   let faceDown = 0;
+  const now = Date.now();
+
   (room.centerPile || []).forEach((card, idx) => {
     const div = document.createElement('div');
     if (card.faceDown) {
@@ -105,9 +108,17 @@ function renderCenterPile() {
     } else {
       div.className = 'game-card face-up';
       div.innerHTML = `<span class="corner tl">${card.value}</span>${card.value}<span class="corner br">${card.value}</span>`;
+      // Show countdown ring if card will flip back
+      if (card.flippedAt) {
+        const remaining = Math.max(0, CARD_FLIP_TTL - (now - card.flippedAt));
+        const pct = remaining / CARD_FLIP_TTL;
+        div.style.setProperty('--flip-progress', pct);
+        div.classList.add('has-timer');
+      }
     }
     el.appendChild(div);
   });
+
   $('center-pile-count').textContent = faceDown;
 }
 
@@ -121,8 +132,8 @@ function renderMyHand() {
     `<div class="game-card face-up"><span class="corner tl">${v}</span>${v}<span class="corner br">${v}</span></div>`
   ).join('');
 
-  $('my-name').textContent       = myPlayer.name || '';
-  $('my-trio-count').textContent = trios.length;
+  $('my-name').textContent        = myPlayer.name || '';
+  $('my-trio-count').textContent  = trios.length;
   $('my-avatar').style.background = col;
   $('my-avatar').style.color      = isLight(col) ? '#2d1b69' : '#fff';
   $('my-avatar').textContent      = (myPlayer.name||'?')[0].toUpperCase();
@@ -138,7 +149,7 @@ function renderMyHand() {
 }
 
 function renderHint() {
-  const el     = $('action-hint');
+  const el = $('action-hint');
   const target = room.turnTarget ?? null;
   if (isMyTurn) {
     el.innerHTML = target !== null
@@ -152,20 +163,66 @@ function renderHint() {
   }
 }
 
+// ── Log: entries fade out after LOG_TTL ───────────────────────────────────────
 function renderLog() {
-  const el = $('action-log');
-  const entries = Object.values(room.log || {}).sort((a,b)=>(a.ts||0)-(b.ts||0)).slice(-30);
+  const el  = $('action-log');
+  const now = Date.now();
+  const FADE_START = LOG_TTL * 0.7; // start fading at 70% of TTL
+
+  const entries = Object.values(room.log || {})
+    .sort((a,b) => (a.ts||0) - (b.ts||0))
+    .filter(e => !e.ts || (now - e.ts) < LOG_TTL); // hide entries older than TTL
+
   el.innerHTML = '<div class="log-title">Spielverlauf</div>' +
-    entries.reverse().map(e=>`<div class="log-entry">${e.text}</div>`).join('');
+    entries.reverse().map(e => {
+      const age = now - (e.ts || 0);
+      let opacity = 1;
+      if (age > FADE_START) {
+        opacity = Math.max(0, 1 - (age - FADE_START) / (LOG_TTL - FADE_START));
+      }
+      return `<div class="log-entry" style="opacity:${opacity.toFixed(3)}">${e.text}</div>`;
+    }).join('');
+}
+
+// ── Statistics panel ──────────────────────────────────────────────────────────
+function renderStats() {
+  const el = $('stats-container');
+  if (!el) return;
+  const stats    = room.stats || {};
+  const winGoal  = room.mode === 'spicy' ? WIN_SPICY : WIN_SIMPLE;
+  const rounds   = stats.rounds || 0;
+  const players  = getPlayers();
+
+  el.innerHTML = players.map(p => {
+    const wins  = stats[p.id]?.wins || 0;
+    const trios = (p.trios || []).length;
+    const col   = pColor(p);
+    const tCol  = isLight(col) ? '#2d1b69' : '#fff';
+    const isAct = room.currentPlayer === p.id;
+    const dots  = Array.from({length: winGoal}, (_,i) =>
+      `<span class="stat-dot${i < trios ? ' filled' : ''}"></span>`
+    ).join('');
+
+    return `
+      <div class="stat-row${isAct ? ' active' : ''}">
+        <div class="stat-avatar" style="background:${col};color:${tCol}">${esc(p.name[0].toUpperCase())}</div>
+        <div class="stat-info">
+          <div class="stat-name">${esc(p.name)}${p.id === MY_ID ? ' <span class="stat-you">(du)</span>' : ''}</div>
+          <div class="stat-wins">🏆 ${wins} Sieg${wins!==1?'e':''}</div>
+        </div>
+        <div class="stat-progress">${dots}</div>
+      </div>`;
+  }).join('');
+
+  $('stat-rounds').textContent = rounds ? `Runde ${rounds}` : 'Runde 1';
 }
 
 // ── Count all visible cards of a given value ─────────────────────────────────
-// Visible = my hand + asked-this-turn cards + face-up center cards
 function countVisible(value, myHand, askedThisTurn, centerPile) {
   let n = 0;
-  (myHand       || []).forEach(v => { if (v === value) n++; });
-  (askedThisTurn|| []).forEach(a => { if (a.value === value) n++; });
-  (centerPile   || []).forEach(c => { if (!c.faceDown && c.value === value) n++; });
+  (myHand       ||[]).forEach(v => { if (v === value) n++; });
+  (askedThisTurn||[]).forEach(a => { if (a.value === value) n++; });
+  (centerPile   ||[]).forEach(c => { if (!c.faceDown && c.value === value) n++; });
   return n;
 }
 
@@ -179,14 +236,12 @@ async function askPlayer(targetId, type) {
   const card   = type === 'lowest' ? sorted[0] : sorted[sorted.length-1];
   const curTarget = room.turnTarget ?? null;
 
-  // ── Mismatch: revealed card ≠ current target → turn ends immediately
   if (curTarget !== null && card !== curTarget) {
     await log(`<span class="actor">${esc(myPlayer.name)}</span> fragt ${esc(target.name)} → <span class="highlight">${card}</span> — Kein Match! Zug endet.`);
     await endTurn();
     return;
   }
 
-  // ── Match (or first reveal of turn): set/keep target
   const newTarget = card;
   const newAsked  = [...(room.askedThisTurn || []), { value: card, playerId: targetId }];
 
@@ -197,10 +252,8 @@ async function askPlayer(targetId, type) {
 
   await log(`<span class="actor">${esc(myPlayer.name)}</span> fragt ${esc(target.name)} (${type==='lowest'?'↓ niedrigste':'↑ höchste'}) → <span class="highlight">${card}</span>`);
 
-  // Check if 3 matching cards are now visible
   const n = countVisible(newTarget, myPlayer.hand||[], newAsked, room.centerPile||[]);
   if (n >= 3) await claimTrio(newTarget, newAsked, null);
-  // Else: turn stays active — player can ask/flip again
 }
 
 // ── Action: Flip a center card ────────────────────────────────────────────────
@@ -210,11 +263,10 @@ async function flipCenterCard(idx) {
   if (!pile[idx]?.faceDown) return;
 
   const value     = pile[idx].value;
-  pile[idx]       = { value, faceDown: false };
+  pile[idx]       = { value, faceDown: false, flippedAt: Date.now() };
   const curTarget = room.turnTarget ?? null;
   const asked     = room.askedThisTurn || [];
 
-  // ── Mismatch
   if (curTarget !== null && value !== curTarget) {
     await update(ref(db), { [`rooms/${ROOM_ID}/centerPile`]: pile });
     await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt auf → <span class="highlight">${value}</span> — Kein Match! Zug endet.`);
@@ -222,29 +274,51 @@ async function flipCenterCard(idx) {
     return;
   }
 
-  // ── Match or first reveal
   await update(ref(db), {
-    [`rooms/${ROOM_ID}/centerPile`]:  pile,
-    [`rooms/${ROOM_ID}/turnTarget`]:  value
+    [`rooms/${ROOM_ID}/centerPile`]: pile,
+    [`rooms/${ROOM_ID}/turnTarget`]: value
   });
 
   await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt Karte auf → <span class="highlight">${value}</span>`);
 
-  // Count using the locally updated pile (Firebase update may not have propagated yet)
   const n = countVisible(value, myPlayer.hand||[], asked, pile);
   if (n >= 3) await claimTrio(value, asked, pile);
-  // Else: turn stays active
+}
+
+// ── Timer: flip face-up center cards back after CARD_FLIP_TTL ────────────────
+async function checkCardFlipBack() {
+  if (!room || room.phase !== 'playing' || flipBackLock) return;
+  const pile = room.centerPile || [];
+  const now  = Date.now();
+  let changed = false;
+
+  const newPile = pile.map(c => {
+    if (!c.faceDown && c.flippedAt && (now - c.flippedAt) >= CARD_FLIP_TTL) {
+      changed = true;
+      return { value: c.value, faceDown: true }; // flip back, drop flippedAt
+    }
+    return c;
+  });
+
+  if (changed) {
+    flipBackLock = true;
+    try {
+      await update(ref(db), { [`rooms/${ROOM_ID}/centerPile`]: newPile });
+      await log('Aufgedeckte Karten wurden wieder umgedreht.');
+    } finally {
+      flipBackLock = false;
+    }
+  }
 }
 
 // ── Claim trio ────────────────────────────────────────────────────────────────
 async function claimTrio(value, askedThisTurn, updatedPile) {
-  const updates  = {};
-  let toRemove   = 3;
+  const updates = {};
+  let toRemove  = 3;
 
-  // 1. Remove from asked players' hands (they gave us their card)
+  // Remove from asked players' hands
   const handsCopy = {};
   getPlayers().filter(p => p.id !== MY_ID).forEach(p => { handsCopy[p.id] = [...(p.hand||[])]; });
-
   for (const a of (askedThisTurn||[])) {
     if (a.value === value && toRemove > 0) {
       const h = handsCopy[a.playerId];
@@ -255,35 +329,38 @@ async function claimTrio(value, askedThisTurn, updatedPile) {
     updates[`rooms/${ROOM_ID}/players/${pid}/hand`] = h;
   });
 
-  // 2. Remove from face-up center cards
+  // Remove from face-up center cards
   const pile = updatedPile ? [...updatedPile] : [...(room.centerPile||[])];
   for (let i = 0; i < pile.length && toRemove > 0; i++) {
     if (!pile[i].faceDown && pile[i].value === value) { pile.splice(i,1); i--; toRemove--; }
   }
   updates[`rooms/${ROOM_ID}/centerPile`] = pile;
 
-  // 3. Remove remaining from my hand
+  // Remove remaining from my hand
   const myHand = [...(myPlayer.hand||[])];
   for (let i = 0; i < myHand.length && toRemove > 0; i++) {
     if (myHand[i] === value) { myHand.splice(i,1); i--; toRemove--; }
   }
   updates[`rooms/${ROOM_ID}/players/${MY_ID}/hand`] = myHand;
 
-  // 4. Score the trio
+  // Score the trio
   const myTrios = [...(myPlayer.trios||[]), { value }];
   updates[`rooms/${ROOM_ID}/players/${MY_ID}/trios`] = myTrios;
 
-  // 5. Reset turn target — player continues their turn fresh
+  // Reset turn state — player continues their turn
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
 
-  // 6. Win check
+  // Win check
   const isGolden  = value === 7;
   const wonSimple = room.mode !== 'spicy' && myTrios.length >= WIN_SIMPLE;
   const wonSpicy  = room.mode === 'spicy'  && hasConnectedTrios(myTrios);
   if (isGolden || wonSimple || wonSpicy) {
     updates[`rooms/${ROOM_ID}/phase`]  = 'ended';
     updates[`rooms/${ROOM_ID}/winner`] = MY_ID;
+    // Increment win stat
+    const currentWins = (room.stats?.[MY_ID]?.wins || 0);
+    updates[`rooms/${ROOM_ID}/stats/${MY_ID}/wins`] = currentWins + 1;
   }
 
   await update(ref(db), updates);
@@ -340,6 +417,9 @@ async function newGame() {
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
   updates[`rooms/${ROOM_ID}/log`]           = { e0: { text: 'Neue Runde gestartet!', ts: Date.now() } };
+  // Increment round counter but keep player win stats
+  const currentRounds = room.stats?.rounds || 0;
+  updates[`rooms/${ROOM_ID}/stats/rounds`]  = currentRounds + 1;
   await update(ref(db), updates);
   $('win-overlay').classList.remove('visible');
 }
@@ -386,6 +466,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!snap.exists()) { toast('Raum nicht gefunden.', 'error'); return; }
     render(snap.val());
   });
+
+  // Re-render log every second for fade effect + check card flip-back
+  setInterval(() => {
+    if (room) {
+      renderLog();
+      renderCenterPile(); // update timer rings
+      checkCardFlipBack();
+    }
+  }, 1000);
 
   $('btn-new-game')?.addEventListener('click', newGame);
   $('btn-back-lobby')?.addEventListener('click', () => location.href = 'index.html');

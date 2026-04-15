@@ -85,10 +85,11 @@
 
     </div>
 
-    <!-- Right sidebar: Scores overview -->
+    <!-- Right sidebar: Statistics -->
     <aside class="game-sidebar right" id="right-sidebar">
-      <div class="sidebar-title">Punktestand</div>
-      <div id="scores-container"></div>
+      <div class="sidebar-title">Statistik</div>
+      <div id="stats-container"></div>
+      <div id="stat-rounds" style="margin-top:auto;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;color:rgba(255,255,255,0.35);font-weight:600"></div>
     </aside>
 
   </main>
@@ -117,13 +118,5 @@
 <div id="toast-container" class="toast-container"></div>
 
 <script type="module" src="js/game.js"></script>
-
-<script>
-  // Scores sidebar — rendered separately from game.js via a simple observer
-  // (avoids adding complexity inside the module)
-  document.addEventListener('DOMContentLoaded', () => {
-    // game.js handles everything via onValue; this just keeps the DOM clean.
-  });
-</script>
 </body>
 </html>

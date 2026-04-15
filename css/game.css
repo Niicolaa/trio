@@ -534,6 +534,92 @@
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
 
+/* ===== Statistics Panel ===== */
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  transition: background var(--transition);
+}
+
+.stat-row.active {
+  background: rgba(78, 205, 196, 0.08);
+  border-color: rgba(78, 205, 196, 0.15);
+}
+
+.stat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.stat-info { flex: 1; min-width: 0; }
+
+.stat-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-you {
+  font-size: 0.7rem;
+  color: var(--teal);
+  font-weight: 600;
+}
+
+.stat-wins {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.45);
+  margin-top: 0.1rem;
+}
+
+.stat-progress {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.stat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  transition: background var(--transition);
+}
+
+.stat-dot.filled {
+  background: var(--gold);
+  box-shadow: 0 0 6px rgba(245, 197, 24, 0.5);
+}
+
+/* ===== Center card timer ring ===== */
+.game-card.has-timer {
+  position: relative;
+}
+
+.game-card.has-timer::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: calc(var(--radius-card) + 3px);
+  background: conic-gradient(
+    var(--teal) calc(var(--flip-progress, 1) * 360deg),
+    rgba(255,255,255,0.1) 0deg
+  );
+  z-index: -1;
+}
+
 /* ===== Player color palette ===== */
 .color-0 { background: #FF6B6B; }
 .color-1 { background: #4ECDC4; }
