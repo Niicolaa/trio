@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trio – Spielfeld</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+
+<div class="game-wrapper">
+
+  <!-- ═══ Game Header ═══════════════════════════════════════════════════════ -->
+  <header class="game-header">
+    <a href="index.html" class="nav-logo" style="font-size:1.3rem">TRIO<span>.</span></a>
+    <div class="room-info">
+      <span class="room-label">Raum</span>
+      <span class="room-code-badge" id="header-room-code">------</span>
+      <span class="mode-badge simple" id="header-mode">Simple</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="turn-indicator" id="turn-indicator">
+      <div class="turn-dot"></div>
+      <span id="turn-indicator-name">Laden…</span>
+    </div>
+    <button id="btn-leave" class="btn btn-secondary" style="padding:0.4rem 1rem;font-size:0.85rem">
+      ← Verlassen
+    </button>
+  </header>
+
+  <!-- ═══ Main Game Area ════════════════════════════════════════════════════ -->
+  <main class="game-main">
+
+    <!-- Left sidebar: Opponents -->
+    <aside class="game-sidebar" id="left-sidebar">
+      <div class="sidebar-title">Mitspieler</div>
+      <div id="opponents-container"></div>
+    </aside>
+
+    <!-- Center board -->
+    <div class="game-board">
+
+      <!-- Center pile -->
+      <div class="center-pile-section">
+        <div class="center-pile-title">
+          Mittelpfeil —
+          <span id="center-pile-count">0</span> verdeckte Karten
+        </div>
+        <div class="center-pile-grid" id="center-pile-grid"></div>
+      </div>
+
+      <!-- Revealed cards area (for showing asked cards) -->
+      <div class="revealed-card-area" id="revealed-area" style="display:none">
+        <span class="revealed-label">Aufgedeckt:</span>
+        <div class="revealed-cards" id="revealed-cards"></div>
+      </div>
+
+      <!-- My hand -->
+      <div class="my-hand-section">
+        <div class="my-hand-header">
+          <div id="my-avatar" class="opp-avatar" style="width:36px;height:36px">?</div>
+          <span class="my-hand-title">Deine Hand — <span id="my-name"></span></span>
+          <span style="font-size:0.8rem;color:rgba(255,255,255,0.4)">
+            <span id="my-trio-count">0</span> Trios
+          </span>
+        </div>
+        <div class="my-cards" id="my-cards"></div>
+
+        <!-- My collected trios -->
+        <div class="my-trios-section hidden" id="my-trios-section">
+          <div class="my-trios-label">Gewonnene Trios</div>
+          <div class="trios-row" id="my-trios"></div>
+        </div>
+      </div>
+
+      <!-- Action log -->
+      <div class="action-log" id="action-log">
+        <div class="log-title">Spielverlauf</div>
+        <div class="log-entry" style="color:rgba(255,255,255,0.3)">Warte auf Spielstart…</div>
+      </div>
+
+    </div>
+
+    <!-- Right sidebar: Scores overview -->
+    <aside class="game-sidebar right" id="right-sidebar">
+      <div class="sidebar-title">Punktestand</div>
+      <div id="scores-container"></div>
+    </aside>
+
+  </main>
+
+  <!-- ═══ Footer / Action bar ═══════════════════════════════════════════════ -->
+  <footer class="game-footer">
+    <span class="action-hint" id="action-hint">Lade Spiel…</span>
+  </footer>
+
+</div>
+
+<!-- ═══ Win Overlay ═══════════════════════════════════════════════════════ -->
+<div class="win-overlay" id="win-overlay">
+  <div class="win-card">
+    <div class="win-emoji" id="win-emoji">🏆</div>
+    <h2 id="win-winner-name"></h2>
+    <p id="win-subtitle"></p>
+    <div class="win-actions">
+      <button class="btn btn-primary btn-lg" id="btn-new-game">Neue Runde</button>
+      <button class="btn btn-secondary" id="btn-back-lobby">Zur Lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Toast container ════════════════════════════════════════════════════ -->
+<div id="toast-container" class="toast-container"></div>
+
+<script type="module" src="js/game.js"></script>
+
+<script>
+  // Scores sidebar — rendered separately from game.js via a simple observer
+  // (avoids adding complexity inside the module)
+  document.addEventListener('DOMContentLoaded', () => {
+    // game.js handles everything via onValue; this just keeps the DOM clean.
+  });
+</script>
+</body>
+</html>

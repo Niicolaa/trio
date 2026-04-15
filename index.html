@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trio – Das Kartenspiel</title>
+  <meta name="description" content="Finde drei gleiche Karten und gewinne! Trio online spielen – multiplayer, kostenlos, direkt im Browser.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ═══ Firebase banner (hidden until shown by JS) ═══════════════════════════ -->
+<div id="firebase-banner" class="hidden" style="
+  background: rgba(255,107,107,0.15);
+  border-bottom: 1px solid rgba(255,107,107,0.4);
+  padding: 0.75rem 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ff6b6b;
+">
+  ⚠️ Firebase noch nicht konfiguriert. Bitte fülle <code>js/config.js</code> mit deinen Firebase-Daten aus.
+  <a href="js/config.js" style="color:#ff6b6b;text-decoration:underline">Anleitung ansehen →</a>
+</div>
+
+<!-- ═══ Navbar ═══════════════════════════════════════════════════════════════ -->
+<nav class="navbar">
+  <div class="container">
+    <a href="#" class="nav-logo">TRIO<span>.</span></a>
+    <ul class="nav-links">
+      <li><a href="#wie-spielen">Wie spielen?</a></li>
+      <li><a href="#spielmodi">Spielmodi</a></li>
+      <li><a href="#spiel-starten">Spielen</a></li>
+    </ul>
+    <a href="#spiel-starten" class="btn btn-primary" style="padding:0.6rem 1.4rem;font-size:0.9rem">Jetzt spielen</a>
+  </div>
+</nav>
+
+<!-- ═══ Hero ════════════════════════════════════════════════════════════════ -->
+<section class="hero" id="hero">
+  <div class="hero-bg"></div>
+  <div class="container" style="position:relative;z-index:1;width:100%">
+    <div class="hero-content">
+      <div class="hero-badge">🏅 As d'Or Gewinner</div>
+      <h1>Das schnellste<br><span class="highlight">Trio</span> gewinnt.</h1>
+      <p>Befrage Mitspieler, decke Karten auf und sammle als Erster drei gleiche Karten. Einfach zu lernen, schwer zu meistern.</p>
+      <div class="hero-actions">
+        <a href="#spiel-starten" class="btn btn-primary btn-lg">Spiel erstellen</a>
+        <a href="#wie-spielen" class="btn btn-secondary btn-lg">Regeln ansehen</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><span class="value">2–6</span><span class="label">Spieler</span></div>
+        <div class="hero-stat"><span class="value">8+</span><span class="label">Jahre</span></div>
+        <div class="hero-stat"><span class="value">5–15</span><span class="label">Minuten</span></div>
+        <div class="hero-stat"><span class="value">36</span><span class="label">Karten</span></div>
+      </div>
+    </div>
+  </div>
+  <!-- Decorative floating cards -->
+  <div class="hero-cards" aria-hidden="true">
+    <div class="card card-teal" data-value="3" style="--rot:-15deg">3</div>
+    <div class="card" data-value="7" style="--rot:5deg;color:#d4a017">7</div>
+    <div class="card card-coral" data-value="11" style="--rot:-5deg">11</div>
+    <div class="card" data-value="3" style="--rot:12deg;color:#4a2d99">3</div>
+  </div>
+</section>
+
+<!-- ═══ How to Play ════════════════════════════════════════════════════════ -->
+<section class="how-to-play" id="wie-spielen">
+  <div class="container">
+    <div class="section-title fade-in">
+      <h2>Wie spielt <span class="accent">man Trio?</span></h2>
+      <p>In wenigen Minuten erklärt – für alle Altersgruppen.</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card fade-in">
+        <div class="step-number">1</div>
+        <h3>Karten austeilen</h3>
+        <p>Jeder Spieler erhält 4–7 Handkarten (je nach Spielerzahl). Die restlichen Karten kommen verdeckt in die Mitte.</p>
+      </div>
+      <div class="step-card fade-in">
+        <div class="step-number">2</div>
+        <h3>Fragen oder aufdecken</h3>
+        <p>Bist du dran, hast du zwei Möglichkeiten: Einen Mitspieler nach seiner <strong>höchsten</strong> oder <strong>niedrigsten</strong> Karte fragen – oder eine verdeckte Karte aus der Mitte aufdecken.</p>
+      </div>
+      <div class="step-card fade-in">
+        <div class="step-number">3</div>
+        <h3>Trio sammeln</h3>
+        <p>Sobald drei identische Karten aufgedeckt werden, nimmst du sie als Trio. Du kannst sofort weitermachen!</p>
+      </div>
+      <div class="step-card fade-in">
+        <div class="step-number">4</div>
+        <h3>Zug beenden</h3>
+        <p>Passt die aufgedeckte Karte nicht zu einem Trio, endet dein Zug. Der nächste Spieler ist dran.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Game Modes ════════════════════════════════════════════════════════ -->
+<section id="spielmodi">
+  <div class="container">
+    <div class="section-title fade-in">
+      <h2>Zwei <span class="accent">Spielmodi</span></h2>
+      <p>Wähle je nach Lust und Können zwischen einer entspannten und einer anspruchsvolleren Variante.</p>
+    </div>
+    <div class="modes-grid fade-in">
+      <div class="mode-card simple">
+        <div class="mode-icon">✨</div>
+        <h3>Simple</h3>
+        <p>Sammel als Erster <strong>3 Trios</strong>. Perfekt für Einsteiger und kurze Spielrunden.</p>
+      </div>
+      <div class="mode-card spicy">
+        <div class="mode-icon">🌶</div>
+        <h3>Spicy</h3>
+        <p>Sammel <strong>2 verbundene Trios</strong> – also zwei Trios mit direkt aufeinanderfolgenden Zahlen (z.B. 5 und 6). Mehr Strategie, mehr Nervenkitzel.</p>
+      </div>
+    </div>
+    <div class="golden-seven fade-in">
+      <div class="icon">⭐</div>
+      <div>
+        <h3>Sofortsieg: Das goldene 7-Trio</h3>
+        <p>Wer als Erster drei <strong>Siebenen</strong> sammelt, gewinnt sofort – unabhängig vom Spielmodus. Die mächtigste Karte im Spiel!</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Features ════════════════════════════════════════════════════════ -->
+<section style="background:rgba(255,255,255,0.02)">
+  <div class="container">
+    <div class="section-title fade-in">
+      <h2>Warum <span class="accent">Trio?</span></h2>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card fade-in">
+        <div class="feature-icon">🧠</div>
+        <h3>Gedächtnis & Strategie</h3>
+        <p>Merke dir, welche Karten Mitspieler haben – und nutze dein Wissen im richtigen Moment.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon">⚡</div>
+        <h3>Blitzschnell</h3>
+        <p>Eine Runde dauert 5–15 Minuten. Perfekt als Aufwärmer oder für zwischendurch.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon">👨‍👩‍👧</div>
+        <h3>Für alle Altersgruppen</h3>
+        <p>Kinder ab 8 können sofort mitspielen – und trotzdem werden Erwachsene gefordert.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon">🌐</div>
+        <h3>Online spielen</h3>
+        <p>Spiele mit Freunden weltweit – einfach Raumcode teilen und los geht's.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Play Section (Lobby UI) ════════════════════════════════════════════ -->
+<section id="spiel-starten" style="padding:5rem 0;background:linear-gradient(to bottom,rgba(74,45,153,0.2),transparent)">
+  <div class="container">
+    <div class="section-title fade-in">
+      <h2>Jetzt <span class="accent">spielen</span></h2>
+      <p>Erstelle einen Raum und teile den Code mit deinen Freunden – kein Account nötig.</p>
+    </div>
+
+    <!-- Main lobby card -->
+    <div style="display:flex;justify-content:center">
+      <div class="lobby-card fade-in">
+
+        <!-- View: Choose action -->
+        <div id="view-choose" class="lobby-view">
+          <div class="lobby-title">
+            <h1>TRIO</h1>
+            <p>Multiplayer Kartenspiel</p>
+          </div>
+
+          <!-- Tabs -->
+          <div class="lobby-tabs">
+            <button class="lobby-tab active" data-tab="create">Raum erstellen</button>
+            <button class="lobby-tab" data-tab="join">Beitreten</button>
+          </div>
+
+          <!-- Create tab -->
+          <div id="tab-create" class="tab-content active">
+            <div class="form-group">
+              <label for="create-name">Dein Name</label>
+              <input type="text" id="create-name" placeholder="z.B. Lisa" maxlength="20" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="create-mode">Spielmodus</label>
+              <select id="create-mode">
+                <option value="simple">✨ Simple – 3 Trios zum Sieg</option>
+                <option value="spicy">🌶 Spicy – 2 verbundene Trios</option>
+              </select>
+            </div>
+            <button id="create-room-btn" class="btn btn-primary" style="width:100%">Raum erstellen →</button>
+          </div>
+
+          <!-- Join tab -->
+          <div id="tab-join" class="tab-content">
+            <div class="form-group">
+              <label for="join-name">Dein Name</label>
+              <input type="text" id="join-name" placeholder="z.B. Max" maxlength="20" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="join-code">Raumcode</label>
+              <input type="text" id="join-code" class="room-code" placeholder="ABC123" maxlength="6" autocomplete="off">
+            </div>
+            <button id="join-room-btn" class="btn btn-teal" style="width:100%">Beitreten →</button>
+          </div>
+        </div>
+
+        <!-- View: Waiting room -->
+        <div id="view-waiting" class="lobby-view hidden">
+          <div class="room-code-display">
+            <div class="label">Raumcode teilen</div>
+            <div class="code" id="waiting-room-code">------</div>
+            <button id="copy-code-btn" class="btn btn-secondary" style="margin-top:0.75rem;width:100%;padding:0.5rem">
+              📋 Code kopieren
+            </button>
+          </div>
+
+          <div class="player-list">
+            <div class="player-list-header">Spieler im Raum</div>
+            <div id="waiting-player-list"></div>
+          </div>
+
+          <button id="start-game-btn" class="btn btn-primary hidden" style="width:100%">
+            Spiel starten
+          </button>
+          <p style="text-align:center;font-size:0.85rem;margin-top:0.75rem;color:rgba(255,255,255,0.4)">
+            Mindestens 2 Spieler benötigt
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Footer ═════════════════════════════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <p>Trio ist ein Spiel von <strong>Kaya Miyano</strong>, veröffentlicht von Happy Camper Games.</p>
+    <p style="margin-top:0.4rem">Diese Web-Implementierung ist ein Fan-Projekt und nicht offiziell mit dem Verlag verbunden.</p>
+  </div>
+</footer>
+
+<!-- ═══ Toast container ════════════════════════════════════════════════════ -->
+<div id="toast-container" class="toast-container"></div>
+
+<script type="module" src="js/lobby.js"></script>
+</body>
+</html>

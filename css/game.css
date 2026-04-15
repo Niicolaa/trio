@@ -1,0 +1,571 @@
+/* ===== Game Layout ===== */
+.game-wrapper {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--purple-dark);
+}
+
+/* ===== Game Header ===== */
+.game-header {
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid var(--white-faint);
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.game-header .room-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.game-header .room-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.5);
+}
+
+.game-header .room-code-badge {
+  background: rgba(245, 197, 24, 0.15);
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 0.15em;
+  padding: 0.2rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid rgba(245, 197, 24, 0.3);
+}
+
+.game-header .mode-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+}
+
+.mode-badge.simple { background: rgba(78, 205, 196, 0.2); color: var(--teal); }
+.mode-badge.spicy { background: rgba(255, 107, 107, 0.2); color: var(--coral); }
+
+.game-header .spacer { flex: 1; }
+
+.turn-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255,255,255,0.06);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.turn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* ===== Main Game Area ===== */
+.game-main {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* ===== Sidebar — Players ===== */
+.game-sidebar {
+  background: rgba(0,0,0,0.2);
+  border-right: 1px solid var(--white-faint);
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.game-sidebar.right {
+  border-right: none;
+  border-left: 1px solid var(--white-faint);
+}
+
+.sidebar-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 0.5rem;
+}
+
+/* ===== Opponent Card ===== */
+.opponent-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  transition: border-color var(--transition);
+}
+
+.opponent-panel.active-turn {
+  border-color: var(--teal);
+  background: rgba(78, 205, 196, 0.06);
+}
+
+.opponent-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.opp-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.opp-name { font-weight: 700; font-size: 0.95rem; flex: 1; }
+.opp-card-count {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.5);
+  font-weight: 600;
+}
+
+.opp-trios {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.trio-badge {
+  background: rgba(245, 197, 24, 0.15);
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  color: var(--gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+
+.trio-badge.golden { background: rgba(245, 197, 24, 0.3); }
+
+.ask-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ask-btn {
+  flex: 1;
+  padding: 0.4rem 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  color: var(--white);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.ask-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.3);
+}
+
+.ask-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.ask-btn.lowest { border-color: rgba(78, 205, 196, 0.3); }
+.ask-btn.highest { border-color: rgba(255, 107, 107, 0.3); }
+
+.ask-btn.lowest:hover:not(:disabled) { background: rgba(78, 205, 196, 0.1); }
+.ask-btn.highest:hover:not(:disabled) { background: rgba(255, 107, 107, 0.1); }
+
+/* ===== Game Board (center) ===== */
+.game-board {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+}
+
+/* ===== Center Pile ===== */
+.center-pile-section {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.center-pile-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 1rem;
+}
+
+.center-pile-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-height: 120px;
+  align-content: flex-start;
+}
+
+/* ===== Game Cards ===== */
+.game-card {
+  width: 72px;
+  height: 100px;
+  border-radius: var(--radius-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 900;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  cursor: default;
+  transition: transform 0.2s, box-shadow 0.2s;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.game-card.face-down {
+  background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
+  cursor: pointer;
+}
+
+.game-card.face-down::after {
+  content: '';
+  width: 52px;
+  height: 76px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255,255,255,0.04) 0px,
+    rgba(255,255,255,0.04) 3px,
+    transparent 3px,
+    transparent 9px
+  );
+}
+
+.game-card.face-down:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.game-card.face-up {
+  background: var(--white);
+  color: var(--purple-dark);
+}
+
+.game-card.face-up .corner {
+  position: absolute;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(45, 27, 105, 0.6);
+}
+
+.game-card.face-up .corner.tl { top: 6px; left: 7px; }
+.game-card.face-up .corner.br { bottom: 6px; right: 7px; transform: rotate(180deg); }
+
+.game-card.selected {
+  transform: translateY(-8px);
+  box-shadow: 0 0 0 3px var(--gold), 0 12px 28px rgba(0,0,0,0.5);
+}
+
+.game-card.matched {
+  animation: matchPop 0.5s ease forwards;
+}
+
+@keyframes matchPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.game-card.flipping {
+  animation: flipCard 0.4s ease;
+}
+
+@keyframes flipCard {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(90deg); opacity: 0.5; }
+  100% { transform: rotateY(0deg); }
+}
+
+/* ===== Revealed Card (during opponent query) ===== */
+.revealed-card-area {
+  background: rgba(245, 197, 24, 0.06);
+  border: 1px solid rgba(245, 197, 24, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 70px;
+}
+
+.revealed-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.revealed-cards {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ===== Player's Own Hand ===== */
+.my-hand-section {
+  background: rgba(78, 205, 196, 0.04);
+  border: 1px solid rgba(78, 205, 196, 0.15);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.my-hand-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.my-hand-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--teal);
+  flex: 1;
+}
+
+.my-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.my-hand-section .game-card.face-up {
+  cursor: default;
+}
+
+/* ===== Trios Display (in hand section) ===== */
+.my-trios-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(78, 205, 196, 0.15);
+}
+
+.my-trios-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 0.5rem;
+}
+
+.trios-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.trio-group {
+  display: flex;
+  gap: -10px;
+}
+
+.trio-group .game-card {
+  width: 48px;
+  height: 67px;
+  font-size: 1.3rem;
+  margin-left: -8px;
+  cursor: default;
+}
+
+.trio-group .game-card:first-child { margin-left: 0; }
+
+/* ===== Action Log ===== */
+.action-log {
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.log-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 0.75rem;
+}
+
+.log-entry {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.6);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  animation: logFade 0.3s ease;
+}
+
+.log-entry:last-child { border-bottom: none; }
+.log-entry .actor { color: var(--white); font-weight: 700; }
+.log-entry .highlight { color: var(--gold); font-weight: 700; }
+.log-entry .success { color: var(--teal); font-weight: 700; }
+
+@keyframes logFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Game Footer / Action Bar ===== */
+.game-footer {
+  background: rgba(0,0,0,0.3);
+  border-top: 1px solid var(--white-faint);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.action-hint {
+  flex: 1;
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.5);
+  font-weight: 600;
+}
+
+.action-hint .hint-highlight { color: var(--gold); font-weight: 700; }
+
+/* ===== Win Overlay ===== */
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 5, 25, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.win-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.win-card {
+  background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
+  border: 2px solid var(--gold);
+  border-radius: 24px;
+  padding: 3rem 4rem;
+  text-align: center;
+  box-shadow: 0 0 80px rgba(245, 197, 24, 0.3);
+  animation: winPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  max-width: 480px;
+  width: 90%;
+}
+
+@keyframes winPop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.win-emoji { font-size: 4rem; margin-bottom: 1rem; }
+.win-card h2 { font-size: 2.5rem; color: var(--gold); margin-bottom: 0.5rem; }
+.win-card p { font-size: 1.1rem; margin-bottom: 2rem; }
+.win-card .win-actions { display: flex; gap: 1rem; justify-content: center; }
+
+/* ===== Confetti pieces ===== */
+.confetti-piece {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: confettiFall linear forwards;
+  pointer-events: none;
+  z-index: 300;
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* ===== Player color palette ===== */
+.color-0 { background: #FF6B6B; }
+.color-1 { background: #4ECDC4; }
+.color-2 { background: #F5C518; color: #2d1b69 !important; }
+.color-3 { background: #A29BFE; }
+.color-4 { background: #FD79A8; }
+.color-5 { background: #55EFC4; color: #2d1b69 !important; }
+
+/* ===== Responsive Game ===== */
+@media (max-width: 1024px) {
+  .game-main {
+    grid-template-columns: 240px 1fr;
+  }
+  .game-sidebar.right { display: none; }
+}
+
+@media (max-width: 768px) {
+  .game-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .game-sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--white-faint);
+    padding: 1rem;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: visible;
+    gap: 0.75rem;
+  }
+  .game-sidebar .sidebar-title { display: none; }
+  .opponent-panel { min-width: 180px; }
+  .game-card { width: 56px; height: 78px; font-size: 1.5rem; }
+  .trio-group .game-card { width: 38px; height: 53px; font-size: 1rem; }
+}
