@@ -301,6 +301,15 @@ function copyRoomCode() {
   });
 }
 
+// ── Copy join link ────────────────────────────────────────────────────────────
+function copyJoinLink() {
+  const code = $('waiting-room-code').textContent;
+  const url  = `${location.origin}${location.pathname}?join=${code}`;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('Link kopiert!', 'success');
+  });
+}
+
 // ── Escape HTML ──────────────────────────────────────────────────────────────
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -348,8 +357,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start game
   $('start-game-btn')?.addEventListener('click', startGame);
 
-  // Copy code
+  // Copy code / link
   $('copy-code-btn')?.addEventListener('click', copyRoomCode);
+  $('copy-link-btn')?.addEventListener('click', copyJoinLink);
 
   // Scroll animations on landing page
   const observer = new IntersectionObserver(entries => {
