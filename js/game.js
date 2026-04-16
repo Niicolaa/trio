@@ -13,13 +13,16 @@ const MY_ID   = params.get('player') || sessionStorage.getItem('trio_player');
 const LOG_TTL    = 10_000;   // ms until log entry fades out
 const PLAYER_COLORS = ['#FF6B6B','#4ECDC4','#F5C518','#A29BFE','#FD79A8','#55EFC4'];
 
-let room           = null;
-let myPlayer       = null;
-let isMyTurn       = false;
-let confettiFired  = false;
-let _newGameLock   = false;
-let _logKeys       = '';
-let _flipBackTimer = null;
+let room             = null;
+let myPlayer         = null;
+let isMyTurn         = false;
+let confettiFired    = false;
+let _newGameLock     = false;
+let _logKeys         = '';
+let _lastRevealedKey = '';
+let _revealTimer     = null;
+let _revealSkipTimer = null;
+let _firstRender     = true;
 
 // ── Config helper (with defaults for legacy rooms) ────────────────────────────
 function cfg() {
@@ -48,8 +51,12 @@ function pColor(p) { return p?.color || PLAYER_COLORS[(p?.order||0)%PLAYER_COLOR
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function render(data) {
-  // Reset confetti flag when a new round starts
   if (room?.phase === 'ended' && data.phase === 'playing') confettiFired = false;
+
+  // Snapshot asked-this-turn state before updating room
+  const newAsked = data.askedThisTurn || [];
+  const newKey   = newAsked.map(a => `${a.playerId}:${a.value}`).join('|');
+
   room     = data;
   myPlayer = room.players?.[MY_ID];
   isMyTurn = room.currentPlayer === MY_ID;
@@ -62,6 +69,23 @@ function render(data) {
   renderLog();
   renderStats();
   if (room.phase === 'ended') showWin();
+
+  // Show / hide card-reveal overlay
+  if (newKey !== _lastRevealedKey) {
+    if (_firstRender) {
+      _lastRevealedKey = newKey; // sync on page load without popping overlay
+    } else if (newAsked.length > 0) {
+      const last   = newAsked[newAsked.length - 1];
+      const player = data.players?.[last.playerId];
+      const asker  = data.players?.[data.currentPlayer];
+      if (player) showCardReveal(player, last.value, asker);
+      _lastRevealedKey = newKey;
+    } else {
+      hideCardReveal();
+      _lastRevealedKey = '';
+    }
+  }
+  _firstRender = false;
 }
 
 function renderHeader() {
@@ -83,7 +107,7 @@ function renderOpponents() {
     const tCol = isLight(col) ? '#2d1b69' : '#fff';
     const isAct = room.currentPlayer === p.id;
     const trios = p.trios || [];
-    const lastAsked = [...asked].reverse().find(a => a.playerId === p.id);
+    const revealedForPlayer = asked.filter(a => a.playerId === p.id);
     const disabled = (!isMyTurn || isAct) ? 'disabled' : '';
 
     const div = document.createElement('div');
@@ -91,11 +115,13 @@ function renderOpponents() {
     div.innerHTML = `
       <div class="opponent-header">
         <div class="opp-avatar" style="background:${col};color:${tCol}">${esc(p.name[0].toUpperCase())}</div>
-        <span class="opp-name">${esc(p.name)}</span>
+        <div class="opp-name-wrap">
+          <span class="opp-name">${esc(p.name)}</span>
+          ${revealedForPlayer.length ? `<div class="opp-revealed-row">${revealedForPlayer.map(a=>`<span class="opp-revealed-chip">${a.value}</span>`).join('')}</div>` : ''}
+        </div>
         <span class="opp-card-count">${(p.hand||[]).length} Ktn.</span>
       </div>
       ${trios.length ? `<div class="opp-trios">${trios.map(t=>`<span class="trio-badge${t.value===7?' golden':''}">${t.value}${t.value===7?'⭐':''}</span>`).join('')}</div>` : ''}
-      ${lastAsked ? `<div style="padding:.3rem 0;font-size:.85rem;color:var(--gold)">Aufgedeckt: <strong>${lastAsked.value}</strong></div>` : ''}
       <div class="ask-buttons">
         <button class="ask-btn lowest" data-pid="${p.id}" ${disabled}>↓ Niedrigste</button>
         <button class="ask-btn highest" data-pid="${p.id}" ${disabled}>↑ Höchste</button>
@@ -112,7 +138,6 @@ function renderCenterPile() {
   const el = $('center-pile-grid');
   el.innerHTML = '';
   let faceDown = 0;
-  const now = Date.now();
 
   (room.centerPile || []).forEach((card, idx) => {
     const div = document.createElement('div');
@@ -300,28 +325,32 @@ async function flipCenterCard(idx) {
   const pile = [...(room.centerPile || [])];
   if (!pile[idx]?.faceDown) return;
 
-  const value     = pile[idx].value;
-  pile[idx]       = { value, faceDown: false };
+  const value = pile[idx].value;
+  // Flip clicked card face-up; flip any other already face-up cards back down
+  const newPile = pile.map((c, i) => {
+    if (i === idx)    return { value: c.value, faceDown: false };
+    if (!c.faceDown)  return { value: c.value, faceDown: true };
+    return c;
+  });
   const curTarget = room.turnTarget ?? null;
   const asked     = room.askedThisTurn || [];
 
   if (curTarget !== null && value !== curTarget) {
-    await update(ref(db), { [`rooms/${ROOM_ID}/centerPile`]: pile });
+    await update(ref(db), { [`rooms/${ROOM_ID}/centerPile`]: newPile });
     await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt auf → <span class="highlight">${value}</span> — Kein Match! Zug endet.`);
     await endTurn();
     return;
   }
 
   await update(ref(db), {
-    [`rooms/${ROOM_ID}/centerPile`]:        pile,
-    [`rooms/${ROOM_ID}/turnTarget`]:        value,
-    [`rooms/${ROOM_ID}/centerFlipBackAt`]:  null,  // cancel any pending flip-back
+    [`rooms/${ROOM_ID}/centerPile`]:  newPile,
+    [`rooms/${ROOM_ID}/turnTarget`]:  value,
   });
 
   await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt Karte auf → <span class="highlight">${value}</span>`);
 
-  const n = countVisible(value, myPlayer.hand||[], asked, pile);
-  if (n >= cfg().matchCount) await claimTrio(value, asked, pile);
+  const n = countVisible(value, myPlayer.hand||[], asked, newPile);
+  if (n >= cfg().matchCount) await claimTrio(value, asked, newPile);
 }
 
 // ── Claim trio ────────────────────────────────────────────────────────────────
@@ -368,7 +397,6 @@ async function claimTrio(value, askedThisTurn, updatedPile) {
   // Reset turn state — player continues their turn
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
-  updates[`rooms/${ROOM_ID}/centerFlipBackAt`] = null;
 
   // Win check
   const c         = cfg();
@@ -393,12 +421,10 @@ async function endTurn() {
   const idx     = players.findIndex(p => p.id === room.currentPlayer);
   const next    = players[(idx+1) % players.length];
 
-  // Cards stay face-up for 10s so all players can see the result
   await update(ref(db), {
-    [`rooms/${ROOM_ID}/currentPlayer`]:    next.id,
-    [`rooms/${ROOM_ID}/turnTarget`]:       null,
-    [`rooms/${ROOM_ID}/askedThisTurn`]:    [],
-    [`rooms/${ROOM_ID}/centerFlipBackAt`]: Date.now() + 10_000,
+    [`rooms/${ROOM_ID}/currentPlayer`]: next.id,
+    [`rooms/${ROOM_ID}/turnTarget`]:    null,
+    [`rooms/${ROOM_ID}/askedThisTurn`]: [],
   });
 }
 
@@ -460,8 +486,7 @@ async function newGame() {
   updates[`rooms/${ROOM_ID}/currentPlayer`] = players[0].id;
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
-  updates[`rooms/${ROOM_ID}/readyForNext`]     = null;
-  updates[`rooms/${ROOM_ID}/centerFlipBackAt`] = null;
+  updates[`rooms/${ROOM_ID}/readyForNext`] = null;
   updates[`rooms/${ROOM_ID}/log`]           = { e0: { text: 'Neue Runde gestartet!', ts: Date.now() } };
   const currentRounds = room.stats?.rounds || 0;
   updates[`rooms/${ROOM_ID}/stats/rounds`]  = currentRounds + 1;
@@ -509,30 +534,36 @@ async function log(text) {
   await update(ref(db), { [`rooms/${ROOM_ID}/log/${key}`]: { text, ts: Date.now() } });
 }
 
-// ── Scheduled center-card flip-back (10s after turn ends) ────────────────────
-function scheduleFlipBack(data) {
-  clearTimeout(_flipBackTimer);
-  _flipBackTimer = null;
-  if (!data.centerFlipBackAt) return;
-  const delay = data.centerFlipBackAt - Date.now();
-  const stamp = data.centerFlipBackAt;
-  if (delay <= 0) {
-    executeFlipBack(stamp);
-  } else {
-    _flipBackTimer = setTimeout(() => executeFlipBack(stamp), delay);
-  }
+// ── Card reveal overlay ───────────────────────────────────────────────────────
+function showCardReveal(player, value, asker) {
+  clearTimeout(_revealTimer);
+  clearTimeout(_revealSkipTimer);
+
+  const col = pColor(player);
+  $('reveal-avatar').style.background = col;
+  $('reveal-avatar').style.color      = isLight(col) ? '#2d1b69' : '#fff';
+  $('reveal-avatar').textContent      = player.name[0].toUpperCase();
+  $('reveal-name').textContent        = player.name;
+  $('reveal-label').textContent       = asker ? `${asker.name} fragt:` : '';
+  $('reveal-val-tl').textContent      = value;
+  $('reveal-val-main').textContent    = value;
+  $('reveal-val-br').textContent      = value;
+
+  const skipBtn = $('reveal-skip-btn');
+  skipBtn.classList.remove('visible');
+
+  $('card-reveal-overlay').classList.add('visible');
+
+  // Show skip button after 3 s
+  _revealSkipTimer = setTimeout(() => skipBtn.classList.add('visible'), 3000);
+  // Auto-dismiss after 5 s
+  _revealTimer = setTimeout(hideCardReveal, 5000);
 }
 
-async function executeFlipBack(expectedStamp) {
-  if (!room) return;
-  if (room.centerFlipBackAt !== expectedStamp) return; // cancelled by a new action
-  if (room.phase !== 'playing') return;
-  if (!(room.centerPile||[]).some(c => !c.faceDown)) return; // nothing to do
-  const pile = (room.centerPile||[]).map(c => c.faceDown ? c : { value: c.value, faceDown: true });
-  await update(ref(db), {
-    [`rooms/${ROOM_ID}/centerPile`]:        pile,
-    [`rooms/${ROOM_ID}/centerFlipBackAt`]:  null,
-  });
+function hideCardReveal() {
+  clearTimeout(_revealTimer);
+  clearTimeout(_revealSkipTimer);
+  $('card-reveal-overlay').classList.remove('visible');
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -543,7 +574,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!snap.exists()) { toast('Raum nicht gefunden.', 'error'); return; }
     const data = snap.val();
     render(data);
-    scheduleFlipBack(data);
 
     // Auto-start new round when all players have clicked ready
     if (data.phase === 'ended') {
@@ -564,4 +594,5 @@ document.addEventListener('DOMContentLoaded', () => {
   $('btn-ready')?.addEventListener('click', markReady);
   $('btn-back-lobby')?.addEventListener('click', () => location.href = 'index.html');
   $('btn-leave')?.addEventListener('click', () => location.href = 'index.html');
+  $('reveal-skip-btn')?.addEventListener('click', hideCardReveal);
 });

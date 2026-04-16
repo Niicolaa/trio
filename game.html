@@ -59,6 +59,12 @@
         <div class="revealed-cards" id="revealed-cards"></div>
       </div>
 
+      <!-- Action log (above hand) -->
+      <div class="action-log" id="action-log">
+        <div class="log-title">Spielverlauf</div>
+        <div class="log-entry" style="color:rgba(255,255,255,0.3)">Warte auf Spielstart…</div>
+      </div>
+
       <!-- My hand -->
       <div class="my-hand-section">
         <div class="my-hand-header">
@@ -75,12 +81,6 @@
           <div class="my-trios-label">Gewonnene Trios</div>
           <div class="trios-row" id="my-trios"></div>
         </div>
-      </div>
-
-      <!-- Action log -->
-      <div class="action-log" id="action-log">
-        <div class="log-title">Spielverlauf</div>
-        <div class="log-entry" style="color:rgba(255,255,255,0.3)">Warte auf Spielstart…</div>
       </div>
 
     </div>
@@ -111,6 +111,23 @@
       <button class="btn btn-primary btn-lg" id="btn-ready">Bereit für nächste Runde</button>
       <button class="btn btn-secondary" id="btn-back-lobby">Zur Lobby</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ Card Reveal Overlay ════════════════════════════════════════════════ -->
+<div id="card-reveal-overlay" class="card-reveal-overlay">
+  <div class="card-reveal-inner">
+    <div class="card-reveal-label" id="reveal-label"></div>
+    <div class="card-reveal-player">
+      <div class="card-reveal-avatar" id="reveal-avatar"></div>
+      <span class="card-reveal-name" id="reveal-name"></span>
+    </div>
+    <div class="game-card face-up reveal-big-card">
+      <span class="corner tl" id="reveal-val-tl"></span>
+      <span id="reveal-val-main"></span>
+      <span class="corner br" id="reveal-val-br"></span>
+    </div>
+    <button class="btn btn-secondary reveal-skip-btn" id="reveal-skip-btn">Weiter →</button>
   </div>
 </div>
 

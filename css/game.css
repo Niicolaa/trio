@@ -610,6 +610,122 @@
   transform: scale(0.94);
 }
 
+/* ===== Opponent revealed-card chips (next to username) ===== */
+.opp-name-wrap { flex: 1; min-width: 0; }
+.opp-name-wrap .opp-name { display: block; }
+
+.opp-revealed-row {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.opp-revealed-chip {
+  background: rgba(245, 197, 24, 0.2);
+  border: 1px solid rgba(245, 197, 24, 0.4);
+  color: var(--gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+/* ===== Card Reveal Overlay ===== */
+.card-reveal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  background: rgba(10, 5, 25, 0.75);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.card-reveal-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.card-reveal-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  animation: revealPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes revealPop {
+  from { transform: scale(0.5) translateY(20px); opacity: 0; }
+  to   { transform: scale(1)   translateY(0);    opacity: 1; }
+}
+
+.card-reveal-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.45);
+  min-height: 1.2em;
+}
+
+.card-reveal-player {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255,255,255,0.06);
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
+}
+
+.card-reveal-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.card-reveal-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.reveal-big-card.game-card {
+  width: 120px;
+  height: 168px;
+  font-size: 3.5rem;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  animation: cardRevealFlip 0.4s ease;
+}
+
+.reveal-big-card.game-card .corner { font-size: 1.1rem; }
+
+@keyframes cardRevealFlip {
+  from { transform: rotateY(90deg) scale(0.8); opacity: 0; }
+  to   { transform: rotateY(0deg)  scale(1);   opacity: 1; }
+}
+
+.reveal-skip-btn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.reveal-skip-btn.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
 /* ===== Center card timer ring ===== */
 .game-card.has-timer {
   position: relative;
