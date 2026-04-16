@@ -53,9 +53,9 @@ function pColor(p) { return p?.color || PLAYER_COLORS[(p?.order||0)%PLAYER_COLOR
 function render(data) {
   if (room?.phase === 'ended' && data.phase === 'playing') confettiFired = false;
 
-  // Snapshot asked-this-turn state before updating room
-  const newAsked = data.askedThisTurn || [];
-  const newKey   = newAsked.map(a => `${a.playerId}:${a.value}`).join('|');
+  // Snapshot lastReveal state before updating room
+  const reveal    = data.lastReveal;
+  const revealKey = reveal ? `${reveal.playerId}:${reveal.value}:${reveal.ts||0}` : '';
 
   room     = data;
   myPlayer = room.players?.[MY_ID];
@@ -70,16 +70,15 @@ function render(data) {
   renderStats();
   if (room.phase === 'ended') showWin();
 
-  // Show / hide card-reveal overlay
-  if (newKey !== _lastRevealedKey) {
+  // Show / hide card-reveal overlay (driven by lastReveal, not askedThisTurn)
+  if (revealKey !== _lastRevealedKey) {
     if (_firstRender) {
-      _lastRevealedKey = newKey; // sync on page load without popping overlay
-    } else if (newAsked.length > 0) {
-      const last   = newAsked[newAsked.length - 1];
-      const player = data.players?.[last.playerId];
-      const asker  = data.players?.[data.currentPlayer];
-      if (player) showCardReveal(player, last.value, asker);
-      _lastRevealedKey = newKey;
+      _lastRevealedKey = revealKey; // sync on page load without popping overlay
+    } else if (reveal) {
+      const player = data.players?.[reveal.playerId];
+      const asker  = data.players?.[reveal.askedBy];
+      if (player) showCardReveal(player, reveal.value, asker);
+      _lastRevealedKey = revealKey;
     } else {
       hideCardReveal();
       _lastRevealedKey = '';
@@ -300,6 +299,9 @@ async function askPlayer(targetId, type) {
   const curTarget = room.turnTarget ?? null;
 
   if (curTarget !== null && card !== curTarget) {
+    await update(ref(db), {
+      [`rooms/${ROOM_ID}/lastReveal`]: { value: card, playerId: targetId, askedBy: MY_ID, ts: Date.now() }
+    });
     await log(`<span class="actor">${esc(myPlayer.name)}</span> fragt ${esc(target.name)} → <span class="highlight">${card}</span> — Kein Match! Zug endet.`);
     await endTurn();
     return;
@@ -310,7 +312,8 @@ async function askPlayer(targetId, type) {
 
   await update(ref(db), {
     [`rooms/${ROOM_ID}/turnTarget`]:    newTarget,
-    [`rooms/${ROOM_ID}/askedThisTurn`]: newAsked
+    [`rooms/${ROOM_ID}/askedThisTurn`]: newAsked,
+    [`rooms/${ROOM_ID}/lastReveal`]:    { value: card, playerId: targetId, askedBy: MY_ID, ts: Date.now() }
   });
 
   await log(`<span class="actor">${esc(myPlayer.name)}</span> fragt ${esc(target.name)} (${type==='lowest'?'↓ niedrigste':'↑ höchste'}) → <span class="highlight">${card}</span>`);
@@ -487,6 +490,7 @@ async function newGame() {
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
   updates[`rooms/${ROOM_ID}/readyForNext`] = null;
+  updates[`rooms/${ROOM_ID}/lastReveal`]   = null;
   updates[`rooms/${ROOM_ID}/log`]           = { e0: { text: 'Neue Runde gestartet!', ts: Date.now() } };
   const currentRounds = room.stats?.rounds || 0;
   updates[`rooms/${ROOM_ID}/stats/rounds`]  = currentRounds + 1;
