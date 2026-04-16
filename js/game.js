@@ -23,6 +23,7 @@ let _lastRevealedKey = '';
 let _revealTimer     = null;
 let _revealSkipTimer = null;
 let _firstRender     = true;
+let _flipBackTimer   = null;
 
 // ── Config helper (with defaults for legacy rooms) ────────────────────────────
 function cfg() {
@@ -328,26 +329,33 @@ async function flipCenterCard(idx) {
   const pile = [...(room.centerPile || [])];
   if (!pile[idx]?.faceDown) return;
 
-  const value = pile[idx].value;
-  // Flip clicked card face-up; flip any other already face-up cards back down
-  const newPile = pile.map((c, i) => {
-    if (i === idx)    return { value: c.value, faceDown: false };
-    if (!c.faceDown)  return { value: c.value, faceDown: true };
-    return c;
-  });
+  const value     = pile[idx].value;
   const curTarget = room.turnTarget ?? null;
   const asked     = room.askedThisTurn || [];
 
+  // First flip of a fresh turn (curTarget null): clear any leftover face-up
+  // cards from the previous player's turn, then reveal this one.
+  // Mid-turn flips: just reveal the new card — keep all others visible.
+  const newPile = pile.map((c, i) => {
+    if (i === idx)   return { value: c.value, faceDown: false };
+    if (!c.faceDown && curTarget === null) return { value: c.value, faceDown: true };
+    return c;
+  });
+
   if (curTarget !== null && value !== curTarget) {
-    await update(ref(db), { [`rooms/${ROOM_ID}/centerPile`]: newPile });
+    await update(ref(db), {
+      [`rooms/${ROOM_ID}/centerPile`]:       newPile,
+      [`rooms/${ROOM_ID}/centerFlipBackAt`]: null,
+    });
     await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt auf → <span class="highlight">${value}</span> — Kein Match! Zug endet.`);
     await endTurn();
     return;
   }
 
   await update(ref(db), {
-    [`rooms/${ROOM_ID}/centerPile`]:  newPile,
-    [`rooms/${ROOM_ID}/turnTarget`]:  value,
+    [`rooms/${ROOM_ID}/centerPile`]:       newPile,
+    [`rooms/${ROOM_ID}/turnTarget`]:       value,
+    [`rooms/${ROOM_ID}/centerFlipBackAt`]: null, // cancel any pending timer
   });
 
   await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt Karte auf → <span class="highlight">${value}</span>`);
@@ -398,8 +406,9 @@ async function claimTrio(value, askedThisTurn, updatedPile) {
   updates[`rooms/${ROOM_ID}/players/${MY_ID}/trios`] = myTrios;
 
   // Reset turn state — player continues their turn
-  updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
-  updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
+  updates[`rooms/${ROOM_ID}/turnTarget`]       = null;
+  updates[`rooms/${ROOM_ID}/askedThisTurn`]    = [];
+  updates[`rooms/${ROOM_ID}/centerFlipBackAt`] = null;
 
   // Win check
   const c         = cfg();
@@ -425,9 +434,10 @@ async function endTurn() {
   const next    = players[(idx+1) % players.length];
 
   await update(ref(db), {
-    [`rooms/${ROOM_ID}/currentPlayer`]: next.id,
-    [`rooms/${ROOM_ID}/turnTarget`]:    null,
-    [`rooms/${ROOM_ID}/askedThisTurn`]: [],
+    [`rooms/${ROOM_ID}/currentPlayer`]:    next.id,
+    [`rooms/${ROOM_ID}/turnTarget`]:       null,
+    [`rooms/${ROOM_ID}/askedThisTurn`]:    [],
+    [`rooms/${ROOM_ID}/centerFlipBackAt`]: Date.now() + 8_000,
   });
 }
 
@@ -489,8 +499,9 @@ async function newGame() {
   updates[`rooms/${ROOM_ID}/currentPlayer`] = players[0].id;
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
-  updates[`rooms/${ROOM_ID}/readyForNext`] = null;
-  updates[`rooms/${ROOM_ID}/lastReveal`]   = null;
+  updates[`rooms/${ROOM_ID}/readyForNext`]     = null;
+  updates[`rooms/${ROOM_ID}/lastReveal`]       = null;
+  updates[`rooms/${ROOM_ID}/centerFlipBackAt`] = null;
   updates[`rooms/${ROOM_ID}/log`]           = { e0: { text: 'Neue Runde gestartet!', ts: Date.now() } };
   const currentRounds = room.stats?.rounds || 0;
   updates[`rooms/${ROOM_ID}/stats/rounds`]  = currentRounds + 1;
@@ -538,6 +549,32 @@ async function log(text) {
   await update(ref(db), { [`rooms/${ROOM_ID}/log/${key}`]: { text, ts: Date.now() } });
 }
 
+// ── Scheduled center-card flip-back ──────────────────────────────────────────
+function scheduleFlipBack(data) {
+  clearTimeout(_flipBackTimer);
+  _flipBackTimer = null;
+  if (!data.centerFlipBackAt) return;
+  const stamp = data.centerFlipBackAt;
+  const delay = stamp - Date.now();
+  if (delay <= 0) {
+    executeFlipBack(stamp);
+  } else {
+    _flipBackTimer = setTimeout(() => executeFlipBack(stamp), delay);
+  }
+}
+
+async function executeFlipBack(expectedStamp) {
+  if (!room) return;
+  if (room.centerFlipBackAt !== expectedStamp) return; // cancelled by a newer action
+  if (room.phase !== 'playing') return;
+  if (!(room.centerPile||[]).some(c => !c.faceDown)) return;
+  const pile = (room.centerPile||[]).map(c => c.faceDown ? c : { value: c.value, faceDown: true });
+  await update(ref(db), {
+    [`rooms/${ROOM_ID}/centerPile`]:       pile,
+    [`rooms/${ROOM_ID}/centerFlipBackAt`]: null,
+  });
+}
+
 // ── Card reveal overlay ───────────────────────────────────────────────────────
 function showCardReveal(player, value, asker) {
   clearTimeout(_revealTimer);
@@ -578,6 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!snap.exists()) { toast('Raum nicht gefunden.', 'error'); return; }
     const data = snap.val();
     render(data);
+    scheduleFlipBack(data);
 
     // Auto-start new round when all players have clicked ready
     if (data.phase === 'ended') {
