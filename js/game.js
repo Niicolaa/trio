@@ -19,6 +19,7 @@ let isMyTurn       = false;
 let confettiFired  = false;
 let _newGameLock   = false;
 let _logKeys       = '';
+let _flipBackTimer = null;
 
 // ── Config helper (with defaults for legacy rooms) ────────────────────────────
 function cfg() {
@@ -135,9 +136,14 @@ function renderMyHand() {
   const trios = myPlayer.trios || [];
   const col   = pColor(myPlayer);
 
-  $('my-cards').innerHTML = hand.map(v =>
-    `<div class="game-card face-up"><span class="corner tl">${v}</span>${v}<span class="corner br">${v}</span></div>`
-  ).join('');
+  const minVal = hand.length ? hand[0]               : null;
+  const maxVal = hand.length ? hand[hand.length - 1] : null;
+
+  $('my-cards').innerHTML = hand.map(v => {
+    const eligible = (v === minVal || v === maxVal);
+    const cls = `game-card face-up${eligible ? '' : ' card-dim'}`;
+    return `<div class="${cls}"><span class="corner tl">${v}</span>${v}<span class="corner br">${v}</span></div>`;
+  }).join('');
 
   $('my-name').textContent        = myPlayer.name || '';
   $('my-trio-count').textContent  = trios.length;
@@ -235,9 +241,13 @@ function renderStats() {
 }
 
 // ── Count all visible cards of a given value ─────────────────────────────────
+// Own hand cards only count if `value` is currently the player's highest or lowest card.
 function countVisible(value, myHand, askedThisTurn, centerPile) {
   let n = 0;
-  (myHand       ||[]).forEach(v => { if (v === value) n++; });
+  const sorted = [...(myHand||[])].sort((a,b) => a-b);
+  if (sorted.length && (sorted[0] === value || sorted[sorted.length-1] === value)) {
+    sorted.forEach(v => { if (v === value) n++; });
+  }
   (askedThisTurn||[]).forEach(a => { if (a.value === value) n++; });
   (centerPile   ||[]).forEach(c => { if (!c.faceDown && c.value === value) n++; });
   return n;
@@ -303,8 +313,9 @@ async function flipCenterCard(idx) {
   }
 
   await update(ref(db), {
-    [`rooms/${ROOM_ID}/centerPile`]: pile,
-    [`rooms/${ROOM_ID}/turnTarget`]: value
+    [`rooms/${ROOM_ID}/centerPile`]:        pile,
+    [`rooms/${ROOM_ID}/turnTarget`]:        value,
+    [`rooms/${ROOM_ID}/centerFlipBackAt`]:  null,  // cancel any pending flip-back
   });
 
   await log(`<span class="actor">${esc(myPlayer.name)}</span> deckt Karte auf → <span class="highlight">${value}</span>`);
@@ -338,10 +349,15 @@ async function claimTrio(value, askedThisTurn, updatedPile) {
   }
   updates[`rooms/${ROOM_ID}/centerPile`] = pile;
 
-  // Remove remaining from my hand
+  // Remove remaining from my hand (only eligible: value must be highest or lowest)
   const myHand = [...(myPlayer.hand||[])];
-  for (let i = 0; i < myHand.length && toRemove > 0; i++) {
-    if (myHand[i] === value) { myHand.splice(i,1); i--; toRemove--; }
+  if (toRemove > 0) {
+    const hs = [...myHand].sort((a,b)=>a-b);
+    if (hs.length && (hs[0] === value || hs[hs.length-1] === value)) {
+      for (let i = 0; i < myHand.length && toRemove > 0; i++) {
+        if (myHand[i] === value) { myHand.splice(i,1); i--; toRemove--; }
+      }
+    }
   }
   updates[`rooms/${ROOM_ID}/players/${MY_ID}/hand`] = myHand;
 
@@ -352,6 +368,7 @@ async function claimTrio(value, askedThisTurn, updatedPile) {
   // Reset turn state — player continues their turn
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
+  updates[`rooms/${ROOM_ID}/centerFlipBackAt`] = null;
 
   // Win check
   const c         = cfg();
@@ -376,14 +393,12 @@ async function endTurn() {
   const idx     = players.findIndex(p => p.id === room.currentPlayer);
   const next    = players[(idx+1) % players.length];
 
-  // Flip all face-up center cards back face-down at turn end
-  const pile = (room.centerPile || []).map(c => c.faceDown ? c : { value: c.value, faceDown: true });
-
+  // Cards stay face-up for 10s so all players can see the result
   await update(ref(db), {
-    [`rooms/${ROOM_ID}/currentPlayer`]: next.id,
-    [`rooms/${ROOM_ID}/turnTarget`]:    null,
-    [`rooms/${ROOM_ID}/askedThisTurn`]: [],
-    [`rooms/${ROOM_ID}/centerPile`]:    pile
+    [`rooms/${ROOM_ID}/currentPlayer`]:    next.id,
+    [`rooms/${ROOM_ID}/turnTarget`]:       null,
+    [`rooms/${ROOM_ID}/askedThisTurn`]:    [],
+    [`rooms/${ROOM_ID}/centerFlipBackAt`]: Date.now() + 10_000,
   });
 }
 
@@ -445,7 +460,8 @@ async function newGame() {
   updates[`rooms/${ROOM_ID}/currentPlayer`] = players[0].id;
   updates[`rooms/${ROOM_ID}/turnTarget`]    = null;
   updates[`rooms/${ROOM_ID}/askedThisTurn`] = [];
-  updates[`rooms/${ROOM_ID}/readyForNext`]  = null;  // clear ready state
+  updates[`rooms/${ROOM_ID}/readyForNext`]     = null;
+  updates[`rooms/${ROOM_ID}/centerFlipBackAt`] = null;
   updates[`rooms/${ROOM_ID}/log`]           = { e0: { text: 'Neue Runde gestartet!', ts: Date.now() } };
   const currentRounds = room.stats?.rounds || 0;
   updates[`rooms/${ROOM_ID}/stats/rounds`]  = currentRounds + 1;
@@ -493,6 +509,32 @@ async function log(text) {
   await update(ref(db), { [`rooms/${ROOM_ID}/log/${key}`]: { text, ts: Date.now() } });
 }
 
+// ── Scheduled center-card flip-back (10s after turn ends) ────────────────────
+function scheduleFlipBack(data) {
+  clearTimeout(_flipBackTimer);
+  _flipBackTimer = null;
+  if (!data.centerFlipBackAt) return;
+  const delay = data.centerFlipBackAt - Date.now();
+  const stamp = data.centerFlipBackAt;
+  if (delay <= 0) {
+    executeFlipBack(stamp);
+  } else {
+    _flipBackTimer = setTimeout(() => executeFlipBack(stamp), delay);
+  }
+}
+
+async function executeFlipBack(expectedStamp) {
+  if (!room) return;
+  if (room.centerFlipBackAt !== expectedStamp) return; // cancelled by a new action
+  if (room.phase !== 'playing') return;
+  if (!(room.centerPile||[]).some(c => !c.faceDown)) return; // nothing to do
+  const pile = (room.centerPile||[]).map(c => c.faceDown ? c : { value: c.value, faceDown: true });
+  await update(ref(db), {
+    [`rooms/${ROOM_ID}/centerPile`]:        pile,
+    [`rooms/${ROOM_ID}/centerFlipBackAt`]:  null,
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   if (!ROOM_ID || !MY_ID) { location.href = 'index.html'; return; }
@@ -501,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!snap.exists()) { toast('Raum nicht gefunden.', 'error'); return; }
     const data = snap.val();
     render(data);
+    scheduleFlipBack(data);
 
     // Auto-start new round when all players have clicked ready
     if (data.phase === 'ended') {

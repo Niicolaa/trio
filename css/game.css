@@ -603,6 +603,13 @@
   box-shadow: 0 0 6px rgba(245, 197, 24, 0.5);
 }
 
+/* ===== Ineligible hand cards (not highest/lowest) ===== */
+.game-card.card-dim {
+  opacity: 0.35;
+  filter: saturate(0.2) brightness(0.8);
+  transform: scale(0.94);
+}
+
 /* ===== Center card timer ring ===== */
 .game-card.has-timer {
   position: relative;
